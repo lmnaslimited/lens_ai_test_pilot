@@ -308,7 +308,7 @@ class clActionBanner extends clAction {
         const LBannerColor = this.actionRow.value;
 
         if (!LBannerMessage) {
-            throw new Error("Banner action requires message field");
+            throw new Error("Banner message is missing");
         }
 
         cy.get('.form-message')
@@ -321,8 +321,6 @@ class clActionBanner extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
-
-
 
 /** @class clActionOnValidate validate the error message*/
 class clActionOnValidate extends clAction {
