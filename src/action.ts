@@ -295,6 +295,29 @@ class clActionActionMenu extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
+class clActionBanner extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LBannerMessage = this.actionRow.message;
+        const LBannerColor = this.actionRow.value;
+
+        if (!LBannerMessage) {
+            throw new Error("Banner action requires message field");
+        }
+
+        cy.get('.form-message')
+            .should('be.visible')
+            .and('have.class', LBannerColor)
+            .within(() => {
+                cy.contains(LBannerMessage);
+            });
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+
+
 
 /** @class clActionOnValidate validate the error message*/
 class clActionOnValidate extends clAction {
@@ -337,6 +360,7 @@ export class clActionFactory {
             "Click Button": clActionClickButton,
             "Action Menu": clActionActionMenu,
             "On Validate": clActionOnValidate,
+            "Banner": clActionBanner
         };
     static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
