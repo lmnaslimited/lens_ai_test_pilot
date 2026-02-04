@@ -1,4 +1,4 @@
-import { fnGetDelay } from "./delay";
+import { ifActionHandler, ifProperties } from "./types"
 
 abstract class clProperties implements ifProperties {
     is_read_only: boolean;
@@ -27,7 +27,7 @@ abstract class clProperties implements ifProperties {
     abstract validate(): void;
 }
 // check the ReadOnly Property
-class clReadOnly extends clProperties {
+export class clReadOnly extends clProperties {
     constructor(action: ifActionHandler) {
         super(true, false, false, action);
         this.fieldProp = ` > .form-group > .control-input-wrapper > .control-value`;
@@ -38,7 +38,7 @@ class clReadOnly extends clProperties {
 }
 
 // check the Mandatory Property
-class clMandatory extends clProperties {
+export class clMandatory extends clProperties {
     constructor(action: ifActionHandler) {
         super(false, true, false, action);
     }
@@ -48,7 +48,7 @@ class clMandatory extends clProperties {
 }
 
 // check the Hidden Property 
-class clHidden extends clProperties {
+export class clHidden extends clProperties {
     constructor(action: ifActionHandler) {
         super(false, false, true, action);
     }
@@ -78,4 +78,3 @@ export class clPropertiesFactory {
         return LAprops;
     }
 }
-

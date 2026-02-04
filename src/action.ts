@@ -1,6 +1,11 @@
 import { clDataTypeFactory } from "./dataType";
 import { clPropertiesFactory } from "./properties";
 import { fnGetDelay } from "../src/delay";
+import { ifActionHandler, ifDataType, TTactionsData, TactionData,
+    TtestHeaderData, TtestLabScript,
+    ifConnection,
+    ifTestAction
+ } from "./types"
 
 /** @class clAction - Base abstract class for executing actions on data fields. */
 //clAction base class which implements the ifHandler interface
@@ -335,9 +340,54 @@ class clActionOnValidate extends clAction {
         }
     }
 
-
     constructor(iAction: string, iaActionData: TTactionsData) {
         super(iAction, iaActionData);
+    }
+}
+
+// abstract class for Test SCript Header level
+// to determin Create or UPdate on UI test and
+// GET, PUT, POST on API test
+abstract class clTestAction implements ifTestAction {
+    testScripts: TtestHeaderData;
+    doctype: string
+
+    constructor(iaScripts: TtestHeaderData) {
+        this.testScripts = iaScripts;
+        this.doctype = this.testScripts.doctype_to_be_tested.trim().toLowerCase().replace(/\s+/g, "-");
+    }
+    abstract executeTestAction(): void
+}
+
+/** @class clActionCreation. - this test script is for validating during creation */
+class clActionCreation extends clTestAction {
+    // navigate to the desired document
+    executeTestAction(): void {
+        cy.location("origin").then(origin => {
+            let LfullUrl = `${origin}/app/${this.doctype}/new`;
+        cy.log(`Navigating to: ${LfullUrl}`);
+        cy.visit(LfullUrl);
+        cy.wait(fnGetDelay("medium"));
+        })
+    }
+}
+
+/** @class clActionUpdate. - this test script is for validating existing document */
+class clActionUpdate extends clTestAction {
+    documentName: string
+    constructor(iaScripts: TtestHeaderData) {
+        super(iaScripts)
+        this.documentName = this.testScripts.document.trim();
+    }
+
+    // Navigate to new form
+    executeTestAction(): void {
+        cy.location("origin").then(origin => {
+            let LfullUrl = `${origin}/app/${this.doctype}/${this.documentName}`;
+        cy.log(`Navigating to: ${LfullUrl}`);
+        cy.visit(LfullUrl);
+        cy.wait(fnGetDelay("medium"));
+        })
     }
 }
 
@@ -362,6 +412,15 @@ export class clActionFactory {
             "On Validate": clActionOnValidate,
             "On Intro Banner": clActionBanner
         };
+
+    /** Action mentioned in the Test Script Header fields */
+    private static testActionsMap: {
+            [key: string] : new (idScript: TtestHeaderData) => clTestAction
+        } = {
+            "Create": clActionCreation,
+            "Update": clActionUpdate
+        }
+
     static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
         if (!LAactionClass) {
@@ -375,87 +434,85 @@ export class clActionFactory {
             ldItem.pos >= iActionRow.pos && ldItem.pos < LposNext
         ));
     }
-    static executeAction(data: TtestHeaderData[]): void {
-        const LvalidRows = data.filter(
-            row =>
-                (row.action === "Create" && row.doctype_to_be_tested.trim()) ||
-                (row.action === "Update" && row.doctype_to_be_tested.trim() && row.document.trim())
-        );
-        if (LvalidRows.length === 0) {
-            cy.log("No valid entries found in CaFilteredParent.");
-            return;
-        }
-        LvalidRows.forEach(row => {
-            const Ldoctype = row.doctype_to_be_tested.trim().toLowerCase().replace(/\s+/g, "-");
-            cy.location("origin").then(origin => {
-                let LfullUrl = `${origin}/app/${Ldoctype}`;
-                switch (row.action) {
-                    case "Create":
-                        LfullUrl += "/new";
-                        break;
-                    case "Update":
-                        const documentName = row.document.trim();
-                        LfullUrl += `/${documentName}`;
-                        break;
-                    default:
-                        cy.log(`Unsupported action type: ${row.action}`);
-                        return;
-                }
-                cy.log(`Navigating to: ${LfullUrl}`);
-                cy.visit(LfullUrl);
-                cy.wait(fnGetDelay("medium"));
-            });
-        });
-    }
-    /**
-        * Handles creating or linking documents via connections within the UI.
-        * If the connection type is "Create", it navigates to the connection, clicks 'Add Row', and saves the new document.
-        * @param script - The test script object containing connection information.
-        * @returns The name of the newly created or linked document wrapped in a Cypress Chainable.
-   */
-    static handleConnection(script: TtestLabScript): Cypress.Chainable<string | null> {
-        const { connection, connection_doctype } = script;
 
-        if (!connection_doctype) {
+    // this method handle the control of naviagtion
+    static executeAction(idScript: TtestHeaderData): ifTestAction {
+        const LaTestActionClass = this.testActionsMap[idScript.action];
+        if (!LaTestActionClass) {
+            throw new Error(`Invalid Test Script action type: ${idScript.action}`);
+        }
+        return new LaTestActionClass(idScript);
+    }
+}
+
+/** @class clConnection - Base abstract class for executing connection businnes logic. */
+//clConnection base class which implements the ifConnection interface
+abstract class clConnection implements ifConnection {
+    testLab: TtestLabScript
+    constructor(idTestLab: TtestLabScript) {
+       this.testLab = idTestLab
+    }
+    handleConnection(): Cypress.Chainable<string | null>{
+        return cy.wrap(null)
+    }
+    
+}
+
+/** @class clConnectionCreate. - create document from connection tab */
+class clConnectionCreate extends clConnection{
+    handleConnection():Cypress.Chainable<string | null> {
+        if (!this.testLab.connection_doctype) {
             cy.log("Missing connection_doctype, skipping.");
             return cy.wrap(null);
         }
-
-        if (connection === "Create") {
-            cy.log("Initiating connection creation from current document...");
-            return cy.contains(".nav-item", "Connections", { timeout: 10000 })
-                .should("be.visible")
-                .click()
-                .wait(fnGetDelay("medium"))
-                .then(() => {
-                    return cy.get(".form-dashboard", { timeout: 10000 }).within(() => {
-                        return cy.contains(".document-link-badge", connection_doctype, { timeout: 10000 })
-                            .should("be.visible")
-                            .parents(".document-link")
-                            .within(() => {
-                                cy.get("button.btn-open-row, button.btn")
-                                    .should("be.visible")
-                                    .click({ force: true });
-                            });
-                    });
-                })
-                .then(() => {
-                    return cy.contains('button', 'Save')
-                        .scrollIntoView()
-                        .should('exist')
-                        .click({ force: true })
-                        .wait(fnGetDelay("short"))
-                        .url()
-                        .then((url: string) => {
-                            const docname = url.split("/").pop() || null;
-                            cy.log(`Created document: ${docname}`);
-                            script.linked_document = docname || undefined;
-                            // Wrap the value to avoid Cypress async/sync issue
-                            return cy.wrap(docname);
+        cy.log("Initiating connection creation from current document...");
+        return cy.contains(".nav-item", "Connections", { timeout: fnGetDelay("long") })
+            .should("be.visible")
+            .click()
+            .wait(fnGetDelay("medium"))
+            .then(() => {
+                return cy.get(".form-dashboard", { timeout: fnGetDelay("long") }).within(() => {
+                    return cy.contains(".document-link-badge", this.testLab.connection_doctype, { timeout: fnGetDelay("long") })
+                        .should("be.visible")
+                        .parents(".document-link")
+                        .within(() => {
+                            cy.get("button.btn-open-row, button.btn")
+                                .should("be.visible")
+                                .click({ force: true });
                         });
                 });
-        }
-        return cy.wrap(null);
+            })
+            .then(() => {
+                return cy.contains('button', 'Save')
+                    .scrollIntoView()
+                    .should('exist')
+                    .click({ force: true })
+                    .wait(fnGetDelay("short"))
+                    .url()
+                    .then((url: string) => {
+                        const docname = url.split("/").pop() || null;
+                        cy.log(`Created document: ${docname}`);
+                        this.testLab.linked_document = docname || undefined;
+                        // Wrap the value to avoid Cypress async/sync issue
+                        return cy.wrap(docname);
+                    });
+            });
+    }
+}
+
+/** @class clConnectionFactory - Factory for creating connection instances */
+export class clConnectionFactory {
+    private static connectionMap: {
+        [key: string]: new (idTestLab: TtestLabScript) => ifConnection
+    } = {
+            "Create": clConnectionCreate,
     }
 
+    static connection(idTestLab: TtestLabScript): ifConnection {
+        const LaConnectionClass = this.connectionMap[idTestLab.connection];
+        if (!LaConnectionClass) {
+            throw new Error(`Invalid action type: ${idTestLab.connection}`);
+        }
+        return new LaConnectionClass(idTestLab);
+    }
 }
