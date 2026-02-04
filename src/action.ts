@@ -189,6 +189,7 @@ class clActionOnTab extends clAction {
         if (!Ltab) return;
         cy.get('.form-tabs .nav-item a').filter(`:contains("${Ltab}")`).first().click({ force: true });
         cy.wait(fnGetDelay('medium'));
+        
     }
     constructor(iAction: string, iaActionData: TTactionsData) {
         super(iAction, iaActionData);
@@ -300,7 +301,8 @@ class clActionActionMenu extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
-export class clActionBanner extends clAction {
+/** @class clActionBanner Validate the Banner message and its colour.*/
+class clActionBanner extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
 
