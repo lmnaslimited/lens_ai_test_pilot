@@ -360,7 +360,7 @@ export class clActionFactory {
             "Click Button": clActionClickButton,
             "Action Menu": clActionActionMenu,
             "On Validate": clActionOnValidate,
-            "Banner": clActionBanner
+            "On Intro Banner": clActionBanner
         };
     static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
