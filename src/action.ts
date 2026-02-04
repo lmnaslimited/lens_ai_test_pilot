@@ -300,7 +300,7 @@ class clActionActionMenu extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
-class clActionBanner extends clAction {
+export class clActionBanner extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
 
