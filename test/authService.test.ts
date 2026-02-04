@@ -1,4 +1,4 @@
-import { AuthService } from "../src/services/authService";
+import { clAuthService } from "../src/services/authService";
 import { expect } from "@jest/globals";
 
 // Mock the delay module to control the delay duration during tests since logout uses wait from it
@@ -10,7 +10,7 @@ describe("AuthService", () => {
   // Mock target URL for the AuthService instance
   const targetUrl = "http://localhost:3000";
   // Create an object named authService to be used in tests
-  let authService: AuthService;
+  let authService: clAuthService;
 
   beforeEach(() => {
     // Mock the global cy object used by Cypress
@@ -21,7 +21,7 @@ describe("AuthService", () => {
       clearLocalStorage: jest.fn(),
       }
     // Instantiate the AuthService before each test
-    authService = new AuthService(targetUrl);
+    authService = new clAuthService(targetUrl);
     
   });
 

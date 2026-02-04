@@ -1,5 +1,5 @@
 // Import the TestContext type which defines the shared test execution state
-import { TestContext } from "../src/types";
+import { ifTestContext } from "../src/types";
 
 // Import the service under test which captures Cypress logs and errors
 import { clLogCaptureService } from "../src/services/logCaptureService";
@@ -10,7 +10,7 @@ import { expect } from "@jest/globals";
 describe("LogCaptureService", () => {
 
   // Holds runtime test information like logs, errors, pass/fail status
-  let context: TestContext;
+  let context: ifTestContext;
 
   // Instance of the service we are testing
   let service: clLogCaptureService;
