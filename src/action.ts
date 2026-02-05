@@ -342,7 +342,76 @@ class clActionOnValidate extends clAction {
         super(iAction, iaActionData);
     }
 }
+// Validates that a group button displays the expected dropdown menu options
+export class clActionValidateGroupButtonOptions extends clAction {    
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+        const LbuttonLabel = this.actionRow.value; // Extract group button label
+        const LaMenus = this.getMenuList(this.actionRow.menus); // Parse expected menu items list    
+        cy.wait(fnGetDelay("medium"));        
+        this.openDropdown(LbuttonLabel); // Open the target group button dropdown
+        this.validateMenuItems(LaMenus); // Verify all expected menu items exist
+    }    
+    // Converts comma-separated menu string into a trimmed string array
+    private getMenuList(LRawMenus: string): string[] {
+        return LRawMenus.split(",").map(m => m.trim());
+    }
+    // Opens the group button dropdown using its visible label
+    private openDropdown(LLabel: string): void 
+    {
+        cy.contains('button', LLabel)
+            .should('have.length', 1)
+            .click({ force: true });       
+        cy.wait(fnGetDelay("long"));
+    }
+    // Validates that each expected dropdown menu item is present
+    private validateMenuItems(LMenuList: string[]): void {
+        for (const item of LMenuList) {
+            cy.get("a.dropdown-item").contains(item).should("exist");
+        }
+    }
+}
 
+// Handles click and validation actions for inner group button menu items
+export class clActionClickInnerGroupButton extends clAction {
+    // Executes conditional validation or click flow for a group button
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+        const { value: LbuttonLabel, menus: LMenus, is_hidden: LIshidden, is_read_only: LReadonly } = this.actionRow;        
+        cy.wait(fnGetDelay("medium"));        
+        if (LIshidden) {
+            this.validateButtonIsHidden(LbuttonLabel); // Assert button is not visible in UI
+            return;
+        }        
+        if (LReadonly) {
+            this.validateButtonIsReadonly(LbuttonLabel); // Assert button is disabled
+            return;
+        }        
+        this.clickButton(LbuttonLabel); // Click the group button to open dropdown
+        this.selectMenu(LMenus); // Select the specified dropdown menu item
+    }
+    // Validates that the group button does not exist in the DOM
+    private validateButtonIsHidden(LLabel: string): void {
+        cy.contains('button', LLabel).should("not.exist");
+    }
+    // Validates that the group button is disabled (read-only)
+    private validateButtonIsReadonly(LLabel: string): void {
+        cy.contains('button', LLabel).should("have.attr", "disabled");
+    }
+    // Clicks the group button
+    private clickButton(LLabel: string): void {
+        cy.contains('button', LLabel)
+            .should('have.length', 1)
+            .click({ force: true });        
+        cy.wait(fnGetDelay("long"));
+    }
+    // Selects a specific dropdown menu item by its label
+    private selectMenu(LMenu: string): void {
+        cy.log(LMenu);
+        cy.contains("a.dropdown-item", LMenu).click({ force: true });
+        cy.wait(fnGetDelay("long"));
+    }
+}
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
 // GET, PUT, POST on API test

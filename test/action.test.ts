@@ -1,14 +1,25 @@
 import { clActionBanner } from "../src/action";
+import {
+  clActionValidateGroupButtonOptions,
+  clActionClickInnerGroupButton,
+} from '../src/action';
+import { TactionData } from '../src/types';
 import { fnGetDelay } from "../src/delay";
 import {expect} from "@jest/globals";
 
 jest.mock("../src/delay", () => ({
   fnGetDelay: jest.fn(() => 500)
 }));
+(globalThis as any).Cypress = {
+  env: () => 0,
+};
 
 describe("Action Classes", () => {
   let lMockAction: string;
   let laMockActionData: any;
+  let cyMock: any;
+  let buttonChain: any;
+  let menuChain: any;
 
   beforeEach(() => {
     (global as any).cy = {
@@ -126,6 +137,109 @@ describe("Action Classes", () => {
       } catch {}
 
       expect(cy.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('clActionValidateGroupButtonOptions', () => {
+    let instance: clActionValidateGroupButtonOptions;
+
+    beforeEach(() => {
+      instance = new clActionValidateGroupButtonOptions({} as any, {} as any);
+      instance.actionData = [
+        {
+          value: 'Create',
+          menus: 'Single Variant, Multiple Variants',
+        } as TactionData,
+      ];
+    });
+
+    it('calls cy.wait before opening dropdown', () => {
+      instance.executeAction();
+      expect(cyMock.wait).toHaveBeenCalled();
+    });
+
+    it('opens dropdown using button label', () => {
+      instance.executeAction();
+      expect(cyMock.contains).toHaveBeenCalledWith('button', 'Create');
+    });
+
+    it('asserts button uniqueness before clicking', () => {
+      instance.executeAction();
+      expect(buttonChain.should).toHaveBeenCalledWith('have.length', 1);
+    });
+
+    it('clicks the group button', () => {
+      instance.executeAction();
+      expect(buttonChain.click).toHaveBeenCalledWith({ force: true });
+    });
+
+    it('validates existence of all menu items', () => {
+      instance.executeAction();
+
+      expect(menuChain.should).toHaveBeenCalledWith('exist');
+      expect(cyMock.get).toHaveBeenCalledWith('a.dropdown-item');
+    });
+  });
+
+  // clActionClickInnerGroupButton
+
+  describe('clActionClickInnerGroupButton', () => {
+    let instance: clActionClickInnerGroupButton;
+
+    beforeEach(() => {
+      instance = new clActionClickInnerGroupButton({} as any, {} as any);
+      instance.actionData = [
+        {
+          value: 'Create',
+          menus: 'Sales Order',
+          is_hidden: false,
+          is_read_only: false,
+        } as TactionData,
+      ];
+    });
+
+    it('waits before performing any action', () => {
+      instance.executeAction();
+      expect(cyMock.wait).toHaveBeenCalled();
+    });
+
+    it('clicks button when not hidden or readonly', () => {
+      instance.executeAction();
+      expect(cyMock.contains).toHaveBeenCalledWith('button', 'Create');
+      expect(buttonChain.click).toHaveBeenCalled();
+    });
+
+    it('logs menu name before selecting it', () => {
+      instance.executeAction();
+      expect(cyMock.log).toHaveBeenCalledWith('Sales Order');
+    });
+
+    it('selects the dropdown menu item', () => {
+      instance.executeAction();
+      expect(cyMock.contains).toHaveBeenCalledWith(
+        'a.dropdown-item',
+        'Sales Order'
+      );
+      expect(menuChain.click).toHaveBeenCalledWith({ force: true });
+    });
+
+    it('does not click button when is_hidden is true', () => {
+      instance.actionData[0].is_hidden = true;
+      instance.executeAction();
+
+      expect(buttonChain.should).toHaveBeenCalledWith('not.exist');
+      expect(buttonChain.click).not.toHaveBeenCalled();
+    });
+
+    it('does not click button when is_read_only is true', () => {
+      instance.actionData[0].is_read_only = true;
+      instance.executeAction();
+
+      expect(buttonChain.should).toHaveBeenCalledWith(
+        'have.attr',
+        'disabled'
+      );
+      expect(buttonChain.click).not.toHaveBeenCalled();
     });
   });
 });
