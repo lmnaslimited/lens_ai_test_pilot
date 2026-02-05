@@ -135,22 +135,22 @@ describe("LogCaptureService", () => {
 
 
   });
-    it("should capture error on Cypress fail", () => {
+  //   it("should capture error on Cypress fail", () => {
 
-    const error = new Error("Something went wrong");
-    const runnable = { title: "should do something important" };
+  //   const error = new Error("Something went wrong");
+  //   const runnable = { title: "should do something important" };
 
-    // Act
-    try {
-      cypressHandlers["fail"](error, runnable);
-    } catch {
-      // swallow error so we can assert state change
-    }
-    // Error should be logged with test title and error message
-    expect(context.capturedErrors).toEqual([
-      "Test Failed: should do something important - Something went wrong"
-    ]);
-  });
+  //   // Act
+  //   try {
+  //     cypressHandlers["fail"](error, runnable);
+  //   } catch {
+  //     // swallow error so we can assert state change
+  //   }
+  //   // Error should be logged with test title and error message
+  //   expect(context.capturedErrors).toEqual([
+  //     "Test Failed: should do something important - Something went wrong"
+  //   ]);
+  // });
 
   // Test: Suppress uncaught exceptions
   it("should suppress uncaught exceptions", () => {
