@@ -1,5 +1,5 @@
   // src/delay.ts
-export function fnGetDelay(type: 'short' | 'medium' | 'long' = 'medium'): number {
+  export function fnGetDelay(type: 'short' | 'medium' | 'long' = 'medium'): number {
     const L_mode = typeof Cypress !== "undefined" && Cypress.env
       ? (Cypress.env("RUNNING_MODE") || "UI").toUpperCase()
       : (process.env.RUNNING_MODE || "UI").toUpperCase();

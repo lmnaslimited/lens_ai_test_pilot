@@ -4,6 +4,17 @@ dotenv.config();
 
 export default defineConfig({
   e2e: {
+
+  /**
+   * setupNodeEvents(on, config)
+   *
+   * This function runs in the Node.js process before tests start.
+   * - `on` is used to register Cypress events and tasks (like `task`, `before:run`, etc.).
+   * - `config` contains the resolved Cypress configuration and can be read or modified.
+   *
+   * It allows customizing Cypress behavior outside the browser.
+   */
+
     async setupNodeEvents(on, config) {
       // Set default running mode
       config.env.RUNNING_MODE =
@@ -24,7 +35,7 @@ export default defineConfig({
       });
 
       // First fetch: Get test data
-      const getTestData = await fetch(
+      const LdGetTestData = await fetch(
         `${process.env.HOST_URL}/api/method/ai_test_pilot_handle_request?i_test_lab=${process.env.TEST_LAB}&i_action=get_test_data`,
         {
           headers: {
@@ -33,14 +44,14 @@ export default defineConfig({
           },
         }
       );
-      const testData = await getTestData.json();
+      const LdTestData = await LdGetTestData.json();
 
-      config.env.FETCHED_TEST_RUN = testData.message.test_run.name;
-      config.env.FETCHED_MASTER_DATA = testData.message.master_data;
-      config.env.FETCHED_LOGIN_DATA = testData.message.login_data;
+      config.env.FETCHED_TEST_RUN = LdTestData.message.test_run.name;
+      config.env.FETCHED_MASTER_DATA = LdTestData.message.master_data;
+      config.env.FETCHED_LOGIN_DATA = LdTestData.message.login_data;
 
       // Second fetch: Get test lab details
-      const getTestLab = await fetch(
+      const LdGetTestLab = await fetch(
         `${process.env.HOST_URL}/api/method/ai_test_pilot_handle_request?i_test_lab=${process.env.TEST_LAB}&i_action=get_test_lab`,
         {
           headers: {
@@ -49,9 +60,9 @@ export default defineConfig({
           },
         }
       );
-      const testLabData = await getTestLab.json();
+      const LdTestLabData = await LdGetTestLab.json();
 
-      config.env.FETCHED_TEST_LAB = testLabData.message.test_lab;
+      config.env.FETCHED_TEST_LAB = LdTestLabData.message.test_lab;
 
       return config;
     },
