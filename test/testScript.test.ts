@@ -8,20 +8,23 @@ import { clConnectionFactory } from "../src/action";
 const targetURL = "http://localhost:3000";
 
 /**
- * Global Cypress mocks
- * We mock Cypress APIs because:
- * - Unit tests should not open browsers
- * - We only want to verify *intent* (calls), not real UI behavior
+ * ------------------------------------------------------
+ * GLOBAL CYPRESS MOCKS
+ * ------------------------------------------------------
+ * Cypress APIs are available at runtime but NOT in Jest.
+ * We mock only the APIs used by the test runner to:
+ * - prevent browser execution
+ * - assert navigation & URL intent
  */
 (global as any).cy = {
-  visit: jest.fn(), // used when navigating to app URL
-  wait: jest.fn(),  // may be used inside scripts
-  url: jest.fn(),   // may be used to capture runtime context
+  visit: jest.fn(),
+  wait: jest.fn(),
+  url: jest.fn(),
 };
 
 /**
- * Cypress.env is accessed inside test execution
- * Mocking prevents runtime failures in Jest
+ * Cypress.env is accessed during execution.
+ * Mocking prevents runtime failures.
  */
 (global as any).Cypress = {
   env: jest.fn(),
@@ -29,8 +32,13 @@ const targetURL = "http://localhost:3000";
 
 describe("Test Script Module", () => {
   let context: ifTestContext;
-  beforeEach(() => {
-    context = {
+
+  /**
+   * Creates a fresh execution context for each test.
+   * Prevents state leakage between test cases.
+   */
+  const createContext = (): ifTestContext =>
+    ({
       currentScript: null,
       createdDocnames: [],
       storeDocname: [],
@@ -38,596 +46,520 @@ describe("Test Script Module", () => {
       capturedLogs: [],
       capturedErrors: [],
       isTestPassed: true,
-    } as ifTestContext;
-  });
-
-//   PART 1 — Factory & Construction
-
-    describe("clTestRunnerFactory", () => {
-        let idScript: any;
-        let ldAuth: clAuthService;
-        let ldReport: clReportService;
-        let ldTestLabData: any;
-        let ldMestMasterData: any;
-        let ldLoginData: any;
-
-        beforeEach(() => {
-        idScript = { test_type: "UI" };
-
-        /**
-         * Auth service is mocked because:
-         * - We don't want real login/logout
-         * - We only assert calls & arguments
-         */
-        ldAuth = {
-            login: jest.fn(),
-            logout: jest.fn(),
-        } as unknown as clAuthService;
-
-        /**
-         * Report service is mocked because:
-         * - No real backend calls should happen
-         * - Only interaction verification is needed
-         */
-        ldReport = {
-            postRunLog: jest.fn(),
-            getTestRun: jest.fn(),
-            updateTestLog: jest.fn(),
-        } as unknown as clReportService;
-
-        ldTestLabData = {};
-        ldMestMasterData = {};
-        ldLoginData = {};
-        });
-
-        it("should create a UI TestRunnerService instance", () => {
-        const runner = clTestRunnerFactory.create(
-            idScript,
-            context,
-            ldAuth,
-            ldReport,
-            targetURL,
-            ldTestLabData,
-            ldMestMasterData,
-            ldLoginData
-        );
-
-        expect(runner).toBeInstanceOf(clTestRunnerService);
-        });
-
-        it("should inject the same context reference into the service", () => {
-        const runner = clTestRunnerFactory.create(
-            idScript,
-            context,
-            ldAuth,
-            ldReport,
-            targetURL,
-            ldTestLabData,
-            ldMestMasterData,
-            ldLoginData
-        ) as clTestRunnerService;
-
-        /**
-         * Accessing private/internal field intentionally
-         * Unit tests are allowed to break encapsulation
-         * to validate wiring correctness
-         */
-        expect((runner as any).ldContext).toBe(context);
-        });
-
-        it("should throw error for unsupported test type", () => {
-        idScript = { test_type: "UNKNOWN" };
-
-        expect(() => {
-            clTestRunnerFactory.create(
-            idScript,
-            context,
-            ldAuth,
-            ldReport,
-            targetURL,
-            ldTestLabData,
-            ldMestMasterData,
-            ldLoginData
-            );
-        }).toThrow(`Unsupported test type: ${idScript.test_type}`);
-        });
-    });
+    } as ifTestContext);
 
   /**
-   * PART 2 — Script Execution Behavior
+   * Auth service mock
+   * - avoids real login/logout
+   * - allows call & argument verification
    */
-    describe("clTestRunnerService", () => {
-        describe("clTestRunnerService - executeScript ()", () => {
-        let service: clTestRunnerService;
-        let ldAuth: clAuthService;
-        let ldReport: clReportService;
+  const createAuthMock = (): clAuthService =>
+    ({
+      login: jest.fn(),
+      logout: jest.fn(),
+    } as unknown as clAuthService);
 
-        const loginData = {
-            TestScript1: {
-            email: "test@example.com",
-            password: "secret",
-            },
-        };
+  /**
+   * Report service mock
+   * - avoids backend calls
+   * - validates interaction only
+   */
+  const createReportMock = (): clReportService =>
+    ({
+      postRunLog: jest.fn(),
+      getTestRun: jest.fn(),
+      updateTestLog: jest.fn(),
+    } as unknown as clReportService);
 
-        beforeEach(() => {
+  beforeEach(() => {
+    context = createContext();
+    jest.clearAllMocks();
+  });
 
+  // Factory & Construction
+  describe("clTestRunnerFactory", () => {
+    let idScript: any;
+    let ldAuth: clAuthService;
+    let ldReport: clReportService;
 
-            ldAuth = {
-            login: jest.fn(),
-            logout: jest.fn(),
-            } as unknown as clAuthService;
+    beforeEach(() => {
+      idScript = { test_type: "UI" };
+      ldAuth = createAuthMock();
+      ldReport = createReportMock();
+    });
 
-            ldReport = {
-            postRunLog: jest.fn(),
-            getTestRun: jest.fn(),
-            updateTestLog: jest.fn(),
-            } as unknown as clReportService;
+    it("should create a UI TestRunnerService instance", () => {
+      const runner = clTestRunnerFactory.create(
+        idScript,
+        context,
+        ldAuth,
+        ldReport,
+        targetURL,
+        {},
+        {},
+        {}
+      );
 
-            service = new clTestRunnerService(
-            context,
-            ldAuth,
-            ldReport,
-            targetURL,
-            { test_lab_script: [] },
-            {},
-            loginData
-            );
+      expect(runner).toBeInstanceOf(clTestRunnerService);
+    });
 
-            jest.clearAllMocks();
-        });
+    it("should inject the same context reference into the service", () => {
+      const runner = clTestRunnerFactory.create(
+        idScript,
+        context,
+        ldAuth,
+        ldReport,
+        targetURL,
+        {},
+        {},
+        {}
+      ) as clTestRunnerService;
 
-        it("sets currentScript on execution start", () => {
-            const script = { name: "TestScript1" };
+      // Verifies wiring, not behavior
+      expect((runner as any).ldContext).toBe(context);
+    });
 
-            service.executeScript(script as any);
+    it("should throw error for unsupported test type", () => {
+      idScript = { test_type: "UNKNOWN" };
 
-            expect(context.currentScript).toBe(script);
-        });
+      expect(() => {
+        clTestRunnerFactory.create(
+          idScript,
+          context,
+          ldAuth,
+          ldReport,
+          targetURL,
+          {},
+          {},
+          {}
+        );
+      }).toThrow(`Unsupported test type: ${idScript.test_type}`);
+    });
+  });
 
-        it("overwrites previously set currentScript", () => {
-            context.currentScript = { name: "OldScript" } as any;
-            const script = { name: "TestScript1" };
+  // Script Execution & Internals
+  describe("clTestRunnerService", () => {
+    // executeScript()
+    describe("clTestRunnerService - executeScript ()", () => {
+      let service: clTestRunnerService;
+      let ldAuth: clAuthService;
+      let ldReport: clReportService;
 
-            service.executeScript(script as any);
+      const loginData = {
+        TestScript1: {
+          email: "test@example.com",
+          password: "secret",
+        },
+      };
 
-            expect(context.currentScript).toBe(script);
-        });
+      const createService = () =>
+        new clTestRunnerService(
+          context,
+          ldAuth,
+          ldReport,
+          targetURL,
+          { test_lab_script: [] },
+          {},
+          loginData
+        );
 
-        it("calls login exactly once per execution", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      const runScript = () =>
+        service.executeScript({ name: "TestScript1" } as any);
 
-            expect(ldAuth.login).toHaveBeenCalledTimes(1);
-        });
+      beforeEach(() => {
+        ldAuth = createAuthMock();
+        ldReport = createReportMock();
+        service = createService();
+      });
 
-        it("passes correct email to login", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("sets currentScript on execution start", () => {
+        const script = { name: "TestScript1" };
+        service.executeScript(script as any);
+        expect(context.currentScript).toBe(script);
+      });
 
-            expect(ldAuth.login).toHaveBeenCalledWith(
-            "test@example.com",
-            expect.any(String)
-            );
-        });
+      it("overwrites previously set currentScript", () => {
+        context.currentScript = { name: "OldScript" } as any;
+        runScript();
+        expect(context.currentScript?.name).toBe("TestScript1");
+      });
 
-        it("passes correct password to login", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("calls login exactly once per execution", () => {
+        runScript();
+        expect(ldAuth.login).toHaveBeenCalledTimes(1);
+      });
 
-            expect(ldAuth.login).toHaveBeenCalledWith(
-            expect.any(String),
-            "secret"
-            );
-        });
+      it("passes correct email to login", () => {
+        runScript();
+        expect(ldAuth.login).toHaveBeenCalledWith(
+          "test@example.com",
+          expect.any(String)
+        );
+      });
 
-        it("navigates to /app after login", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("passes correct password to login", () => {
+        runScript();
+        expect(ldAuth.login).toHaveBeenCalledWith(
+          expect.any(String),
+          "secret"
+        );
+      });
 
-            expect(cy.visit).toHaveBeenCalledWith(`${targetURL}/app`);
-        });
+      it("navigates to /app after login", () => {
+        runScript();
+        expect(cy.visit).toHaveBeenCalledWith(`${targetURL}/app`);
+      });
 
-        it("does not navigate to a random URL", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("does not navigate to a random URL", () => {
+        runScript();
+        expect(cy.visit).not.toHaveBeenCalledWith("/login");
+      });
 
-            expect(cy.visit).not.toHaveBeenCalledWith("/login");
-        });
+      it("logs out after script execution", () => {
+        runScript();
+        expect(ldAuth.logout).toHaveBeenCalled();
+      });
 
-        it("logs out after script execution", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("calls logout only once", () => {
+        runScript();
+        expect(ldAuth.logout).toHaveBeenCalledTimes(1);
+      });
 
-            expect(ldAuth.logout).toHaveBeenCalled();
-        });
+      it("throws error if script name is missing", () => {
+        expect(() => service.executeScript({} as any)).toThrow();
+      });
 
-        it("calls logout only once", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("throws meaningful error when login credentials are missing", () => {
+        expect(() =>
+          service.executeScript({ name: "UnknownScript" } as any)
+        ).toThrow("No login credentials for UnknownScript");
+      });
 
-            expect(ldAuth.logout).toHaveBeenCalledTimes(1);
-        });
+      it("does not modify createdDocnames when no documents are created", () => {
+        runScript();
+        expect(context.createdDocnames.length).toBe(0);
+      });
 
-        it("throws error if script name is missing", () => {
-            expect(() => {
-            service.executeScript({} as any);
-            }).toThrow();
-        });
+      it("does not modify createdDocsByIndex when no data is present", () => {
+        runScript();
+        expect(context.createdDocsByIndex.length).toBe(0);
+      });
 
-        it("throws meaningful error when login credentials are missing", () => {
-            expect(() => {
-            service.executeScript({ name: "UnknownScript" } as any);
-            }).toThrow("No login credentials for UnknownScript");
-        });
+      it("does not mark test as failed on successful execution", () => {
+        runScript();
+        expect(context.isTestPassed).toBe(true);
+      });
 
-        it("does not modify createdDocnames when no documents are created", () => {
-            service.executeScript({ name: "TestScript1" } as any);
+      it("does not push errors when execution is clean", () => {
+        runScript();
+        expect(context.capturedErrors.length).toBe(0);
+      });
 
-            expect(context.createdDocnames.length).toBe(0);
-        });
+      it("does not push logs when no explicit logging happens", () => {
+        runScript();
+        expect(context.capturedLogs.length).toBe(0);
+      });
 
-        it("does not modify createdDocsByIndex when no data is present", () => {
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(context.createdDocsByIndex.length).toBe(0);
-        });
-
-        it("does not mark test as failed on successful execution", () => {
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(context.isTestPassed).toBe(true);
-        });
-
-        it("does not push errors when execution is clean", () => {
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(context.capturedErrors.length).toBe(0);
-        });
-
-        it("does not push logs when no explicit logging happens", () => {
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(context.capturedLogs.length).toBe(0);
-        });
-
-        it("does not crash when actual_test_data is null", () => {
-            expect(() => {
-            service.executeScript({
-                name: "TestScript1",
-                actual_test_data: null,
-            } as any);
-            }).not.toThrow();
-        });
-
-        it("does not crash when actual_test_data is undefined", () => {
-            expect(() => {
-            service.executeScript({
-                name: "TestScript1",
-            } as any);
-            }).not.toThrow();
-        });
-
-        it("does not depend on test_lab_script content when empty", () => {
-            expect(() => {
-            service.executeScript({ name: "TestScript1" } as any);
-            }).not.toThrow();
-        });
-
-        it("does not mutate loginData during execution", () => {
-            const snapshot = JSON.stringify(loginData);
-
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(JSON.stringify(loginData)).toBe(snapshot);
-        });
-
-        it("can be executed multiple times with same script safely", () => {
-            const script = { name: "TestScript1" };
-
-            service.executeScript(script as any);
-            service.executeScript(script as any);
-
-            expect(ldAuth.login).toHaveBeenCalledTimes(2);
-            expect(ldAuth.logout).toHaveBeenCalledTimes(2);
-        });
-        it("calls injectDocumentIfRequired", () => {
-            const spy = jest.spyOn(service as any, "injectDocumentIfRequired");
-
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(spy).toHaveBeenCalled();
-        });
-
-        it("calls runScriptActions", () => {
-            const spy = jest.spyOn(service as any, "runScriptActions");
-
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(spy).toHaveBeenCalled();
-        });
-
-        it("calls captureCreatedDocument", () => {
-            const spy = jest.spyOn(service as any, "captureCreatedDocument");
-
-            service.executeScript({ name: "TestScript1" } as any);
-
-            expect(spy).toHaveBeenCalled();
-        });
-
-
-        }); 
-        describe("injectDocumentIfRequired()", () => {
-        let service: clTestRunnerService;
-
-        beforeEach(() => {
-            const context: ifTestContext = {
-            currentScript: null,
-            storeDocname: [{ idx: 1, docname: "QUO-001" }],
-            createdDocnames: [],
-            createdDocsByIndex: [],
-            capturedLogs: [],
-            capturedErrors: [],
-            isTestPassed: true,
-            };
-
-            service = new clTestRunnerService(
-            context,
-            {} as any,
-            {} as any,
-            targetURL,
-            {
-                test_lab_script: [
-                { master_data: "TestScript1", use_docname: 1 },
-                ],
-            },
-            {},
-            {}
-            );
-        });
-
-        it("injects document when use_docname exists", () => {
-            const script: any = {
+      it("does not crash when actual_test_data is null", () => {
+        expect(() =>
+          service.executeScript({
             name: "TestScript1",
-            actual_test_data: [],
-            };
+            actual_test_data: null,
+          } as any)
+        ).not.toThrow();
+      });
 
-            (service as any).injectDocumentIfRequired(script);
+      it("does not crash when actual_test_data is undefined", () => {
+        expect(() => runScript()).not.toThrow();
+      });
 
-            expect(script.document).toBe("QUO-001");
-        });
+      it("does not depend on test_lab_script content when empty", () => {
+        expect(() => runScript()).not.toThrow();
+      });
 
-        it("does nothing when actual_test_data is missing", () => {
-            expect(() => {
-            (service as any).runScriptActions({ name: "TestScript1" });
-            }).not.toThrow();
-        });
-        });
+      it("does not mutate loginData during execution", () => {
+        const snapshot = JSON.stringify(loginData);
+        runScript();
+        expect(JSON.stringify(loginData)).toBe(snapshot);
+      });
 
-        describe("clTestRunnerService -  findTestLabRow()", () => {
-        let service: clTestRunnerService;
-        let context: ifTestContext;
+      it("can be executed multiple times with same script safely", () => {
+        runScript();
+        runScript();
+        expect(ldAuth.login).toHaveBeenCalledTimes(2);
+        expect(ldAuth.logout).toHaveBeenCalledTimes(2);
+      });
 
-        beforeEach(() => {
-            context = {
-            currentScript: null,
-            createdDocnames: [],
-            storeDocname: [],
-            createdDocsByIndex: [],
-            capturedLogs: [],
-            capturedErrors: [],
-            isTestPassed: true,
-            } as ifTestContext;
+      it("calls injectDocumentIfRequired", () => {
+        const spy = jest.spyOn(service as any, "injectDocumentIfRequired");
+        runScript();
+        expect(spy).toHaveBeenCalled();
+      });
 
-            service = new clTestRunnerService(
-            context,
-            {} as any,
-            {} as any,
-            targetURL,
-            {
-                test_lab_script: [
-                { master_data: "Quotation", row_index: 1 },
-                { master_data: "Customer", row_index: 2 },
-                ],
-            },
-            {},
-            {}
-            );
-        });
+      it("calls runScriptActions", () => {
+        const spy = jest.spyOn(service as any, "runScriptActions");
+        runScript();
+        expect(spy).toHaveBeenCalled();
+      });
 
-        it("returns matching test lab row when master data exists", () => {
-            const row = (service as any).findTestLabRow("Quotation");
+      it("calls captureCreatedDocument", () => {
+        const spy = jest.spyOn(service as any, "captureCreatedDocument");
+        runScript();
+        expect(spy).toHaveBeenCalled();
+      });
+    });
+    
+    describe("clTestRunnerService - document injection, lookup & capture", () => {
+      let service: clTestRunnerService;
+      let context: ifTestContext;
 
-            expect(row).toBeDefined();
-            expect(row.master_data).toBe("Quotation");
-        });
+      /**
+       * WHY cy.url is mocked:
+       * - captureCreatedDocument depends on Cypress runtime
+       * - Jest does not run inside Cypress
+       * - We simulate Cypress's thenable behavior manually
+       */
+      const mockCyUrl = (url?: string) => {
+        (cy.url as jest.Mock).mockImplementation(() => ({
+          then: (cb: (val?: string) => void) => cb(url),
+        }));
+      };
 
-        it("returns undefined when master data does not exist", () => {
-            const row = (service as any).findTestLabRow("Invoice");
+      beforeEach(() => {
+        context = {
+          currentScript: {
+            name: "TestScript1",
+            actual_test_data: [
+              {
+                master_data: "Quotation",
+                row_index: 1,
+              },
+            ],
+          },
 
-            expect(row).toBeUndefined();
-        });
+          /**
+           * storeDocname is mocked because:
+           * - injectDocumentIfRequired reads from it using use_docname index
+           * - We need deterministic document injection
+           */
+          storeDocname: [{ idx: 1, docname: "QUO-001" }],
 
-        it("does not throw when test_lab_script is empty", () => {
-            const emptyService = new clTestRunnerService(
-            context,
-            {} as any,
-            {} as any,
-            targetURL,
-            { test_lab_script: [] },
-            {},
-            {}
-            );
-
-            expect(() => {
-            (emptyService as any).findTestLabRow("Quotation");
-            }).not.toThrow();
-        });
-
-        it("does not mutate test_lab_script data", () => {
-            const snapshot = JSON.stringify(
-            (service as any).ldTestLabData.test_lab_script
-            );
-
-            (service as any).findTestLabRow("Quotation");
-
-            expect(
-            JSON.stringify((service as any).ldTestLabData.test_lab_script)
-            ).toBe(snapshot);
-        });
-        });
-        describe("clTestRunnerService - captureCreatedDocument()", () => {
-        let service: clTestRunnerService;
-        let context: ifTestContext;
+          createdDocnames: [],
+          createdDocsByIndex: [],
+          capturedLogs: [],
+          capturedErrors: [],
+          isTestPassed: true,
+        } as ifTestContext;
 
         /**
-         * Helper to mock cy.url() as a Cypress-style thenable
+         * WHY global cy is mocked:
+         * - Service internally calls cy.url()
+         * - Jest environment has no Cypress runtime
          */
-        const mockCyUrl = (url?: string) => {
-            (cy.url as jest.Mock).mockImplementation(() => ({
-            then: (cb: (val?: string) => void) => cb(url),
-            }));
-        };
-
-        beforeEach(() => {
-            context = {
-            currentScript: {
-                name: "TestScript1",
-                actual_test_data: [
-                {
-                    master_data: "Quotation",
-                    row_index: 1,  
-                },
-                ],
-            },
-            createdDocnames: [],
-            storeDocname: [],
-            createdDocsByIndex: [],
-            capturedLogs: [],
-            capturedErrors: [],
-            isTestPassed: true,
-            } as ifTestContext;
-
-
         (global as any).cy = {
-            url: jest.fn(),
+          url: jest.fn(),
         };
 
         service = new clTestRunnerService(
-            context,
-            {} as any,
-            {} as any,
-            targetURL,
-            {
+          context,
+          {} as any, // auth service not needed for these tests
+          {} as any, // logger not needed
+          targetURL,
+          {
+            /**
+             * test_lab_script mocked to:
+             * - support injectDocumentIfRequired
+             * - support findTestLabRow
+             * - support captureCreatedDocument row matching
+             */
             test_lab_script: [
-                { master_data: "Quotation", row_index: 1 },
+              { master_data: "TestScript1", use_docname: 1 },
+              { master_data: "Quotation", row_index: 1 },
+              { master_data: "Customer", row_index: 2 },
             ],
-            },
-            {},
-            {}
+          },
+          {},
+          {}
         );
-        });
+      });
 
-        it("does nothing when URL does not contain a document name", () => {
-            mockCyUrl("http://localhost/app");
+      /* ------------------------------------------------------------------ */
+      /* injectDocumentIfRequired                                            */
+      /* ------------------------------------------------------------------ */
 
-            (service as any).captureCreatedDocument("Quotation");
+      it("injects document when use_docname exists", () => {
+        const script: any = {
+          name: "TestScript1",
+          actual_test_data: [],
+        };
 
-            expect(context.createdDocnames.length).toBe(0);
-        });
+        (service as any).injectDocumentIfRequired(script);
 
-        it("does not throw when cy.url resolves to undefined", () => {
-            mockCyUrl(undefined);
+        expect(script.document).toBe("QUO-001");
+      });
 
-            expect(() => {
-            (service as any).captureCreatedDocument("Quotation");
-            }).not.toThrow();
-        });
+      it("does nothing when actual_test_data is missing", () => {
+        expect(() => {
+          (service as any).runScriptActions({ name: "TestScript1" });
+        }).not.toThrow();
+      });
 
-        it("does not throw when test lab row is missing", () => {
-            mockCyUrl("http://localhost/app/invoice/INV-0001");
+      /* ------------------------------------------------------------------ */
+      /* findTestLabRow                                                      */
+      /* ------------------------------------------------------------------ */
 
-            expect(() => {
-            (service as any).captureCreatedDocument("Invoice");
-            }).not.toThrow();
-        });
-        });
-        describe("handleConnectionCreation()", () => {
-        let service: clTestRunnerService;
+      it("returns matching test lab row when master data exists", () => {
+        const row = (service as any).findTestLabRow("Quotation");
 
-        beforeEach(() => {
-            service = new clTestRunnerService(
-            context,
-            {} as any,
-            {} as any,
-            targetURL,
-            { test_lab_script: [] },
-            {},
-            {}
-            );
-        });
+        expect(row).toBeDefined();
+        expect(row.master_data).toBe("Quotation");
+      });
 
-        it("does nothing when connection is not Create", () => {
-            (service as any).handleConnectionCreation({
-            connection: "Read",
-            });
+      it("returns undefined when master data does not exist", () => {
+        const row = (service as any).findTestLabRow("Invoice");
 
-            expect(context.createdDocnames.length).toBe(0);
-        });
+        expect(row).toBeUndefined();
+      });
 
-        it("pushes docname when connection returns string", async () => {
-            jest
-            .spyOn(clConnectionFactory, "connection")
-            .mockReturnValue({
-                handleConnection: () => Promise.resolve("INV-001"),
-            } as any);
+      it("does not throw when test_lab_script is empty", () => {
+        const emptyService = new clTestRunnerService(
+          context,
+          {} as any,
+          {} as any,
+          targetURL,
+          { test_lab_script: [] },
+          {},
+          {}
+        );
 
-            const script: any = {
-            connection: "Create",
-            connection_doctype: "Invoice",
-            idx: 1,
-            };
+        expect(() => {
+          (emptyService as any).findTestLabRow("Quotation");
+        }).not.toThrow();
+      });
 
-            await (service as any).handleConnectionCreation(script);
+      it("does not mutate test_lab_script data", () => {
+        const snapshot = JSON.stringify(
+          (service as any).ldTestLabData.test_lab_script
+        );
 
-            expect(context.createdDocnames).toContain("INV-001");
-        });
+        (service as any).findTestLabRow("Quotation");
 
-        // extractDocnameFromUrl()
+        expect(
+          JSON.stringify((service as any).ldTestLabData.test_lab_script)
+        ).toBe(snapshot);
+      });
 
-          it("extracts document name from valid URL", () => {
-            const result = (service as any).extractDocnameFromUrl(
-            "http://localhost/app/quotation/QUO-0001"
-            );
+      /* ------------------------------------------------------------------ */
+      /* captureCreatedDocument                                              */
+      /* ------------------------------------------------------------------ */
 
-            expect(result).toBe("QUO-0001");
-        });
+      it("does nothing when URL does not contain a document name", () => {
+        mockCyUrl("http://localhost/app");
 
-        it("returns undefined for invalid URL", () => {
-            const result = (service as any).extractDocnameFromUrl("");
+        (service as any).captureCreatedDocument("Quotation");
 
-            expect(result).toBeUndefined();
-        });
-        // finalizeScript()
+        expect(context.createdDocnames.length).toBe(0);
+      });
 
-        it("does nothing when no currentScript exists", () => {
-            context.currentScript = null;
+      it("does not throw when cy.url resolves to undefined", () => {
+        mockCyUrl(undefined);
 
-            expect(() => {
-            service.finalizeScript();
-            }).not.toThrow();
-        });
+        expect(() => {
+          (service as any).captureCreatedDocument("Quotation");
+        }).not.toThrow();
+      });
 
-        it("resets context after finalize", () => {
-            context.currentScript = { name: "TestScript1" } as any;
-            context.capturedLogs.push("log");
-            context.capturedErrors.push("err");
-            context.isTestPassed = false;
+      it("does not throw when test lab row is missing", () => {
+        mockCyUrl("http://localhost/app/invoice/INV-0001");
 
-            service.finalizeScript();
-
-            expect(context.capturedLogs.length).toBe(0);
-            expect(context.capturedErrors.length).toBe(0);
-            expect(context.isTestPassed).toBe(true);
-            expect(context.currentScript).toBeNull();
-        });
-        });
+        expect(() => {
+          (service as any).captureCreatedDocument("Invoice");
+        }).not.toThrow();
+      });
     });
 
+    describe("clTestRunnerService - handleConnectionCreation, extractDocnameFromUrl, inalizeScript", () => {
+    let service: clTestRunnerService;
 
+    beforeEach(() => {
+        service = new clTestRunnerService(
+        context,
+        {} as any,
+        {} as any,
+        targetURL,
+        { test_lab_script: [] },
+        {},
+        {}
+        );
+    });
 
- 
-});
+    it("does nothing when connection is not Create", () => {
+        (service as any).handleConnectionCreation({
+        connection: "Read",
+        });
+
+        expect(context.createdDocnames.length).toBe(0);
+    });
+
+    it("pushes docname when connection returns string", async () => {
+        jest
+        .spyOn(clConnectionFactory, "connection")
+        .mockReturnValue({
+            handleConnection: () => Promise.resolve("INV-001"),
+        } as any);
+
+        const script: any = {
+        connection: "Create",
+        connection_doctype: "Invoice",
+        idx: 1,
+        };
+
+        await (service as any).handleConnectionCreation(script);
+
+        expect(context.createdDocnames).toContain("INV-001");
+    });
+
+    // extractDocnameFromUrl()
+
+      it("extracts document name from valid URL", () => {
+        const result = (service as any).extractDocnameFromUrl(
+        "http://localhost/app/quotation/QUO-0001"
+        );
+
+        expect(result).toBe("QUO-0001");
+    });
+
+    it("returns undefined for invalid URL", () => {
+        const result = (service as any).extractDocnameFromUrl("");
+
+        expect(result).toBeUndefined();
+    });
+    // finalizeScript()
+
+    it("does nothing when no currentScript exists", () => {
+        context.currentScript = null;
+
+        expect(() => {
+        service.finalizeScript();
+        }).not.toThrow();
+    });
+
+    it("resets context after finalize", () => {
+        context.currentScript = { name: "TestScript1" } as any;
+        context.capturedLogs.push("log");
+        context.capturedErrors.push("err");
+        context.isTestPassed = false;
+
+        service.finalizeScript();
+
+        expect(context.capturedLogs.length).toBe(0);
+        expect(context.capturedErrors.length).toBe(0);
+        expect(context.isTestPassed).toBe(true);
+        expect(context.currentScript).toBeNull();
+    });
+    });
+
+  })
+})
+
 
