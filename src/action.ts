@@ -302,27 +302,25 @@ class clActionActionMenu extends clAction {
     }
 }
 /** @class clActionBanner Validate the Banner message and its colour.*/
-class clActionBanner extends clAction {
+export class clActionBanner extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
 
-        const LBannerMessage = this.actionRow.message;
+        const LBannerMessage = this.actionRow.message?.trim();
         const LBannerColor = this.actionRow.value;
 
         if (!LBannerMessage) {
             throw new Error("Banner message is missing");
         }
 
-        cy.get('.form-message')
-            .should('be.visible')
-            .and('have.class', LBannerColor)
-            .within(() => {
-                cy.contains(LBannerMessage);
-            });
+        cy.get(`.form-message.${LBannerColor}:visible`)
+            .last()
+            .should('contain.text', LBannerMessage);
 
         cy.wait(fnGetDelay("medium"));
     }
 }
+
 
 /** @class clActionOnValidate validate the error message*/
 class clActionOnValidate extends clAction {
