@@ -477,6 +477,8 @@ export class clActionFactory {
             "Click Button": clActionClickButton,
             "Action Menu": clActionActionMenu,
             "On Validate": clActionOnValidate,
+            "Click Group Button": clActionClickInnerGroupButton,
+            "Validate Group Button Options":clActionValidateGroupButtonOptions,
             "On Intro Banner": clActionBanner
         };
 
