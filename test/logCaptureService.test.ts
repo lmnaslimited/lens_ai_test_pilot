@@ -10,14 +10,14 @@ import { expect } from "@jest/globals";
 describe("LogCaptureService", () => {
 
   // Holds runtime test information like logs, errors, pass/fail status
-  let context: ifTestContext;
+  let ldContext: ifTestContext;
 
   // Instance of the service we are testing
-  let service: clLogCaptureService;
+  let ldService: clLogCaptureService;
 
   // Stores Cypress event handlers registered via Cypress.on(...)
   // This allows us to manually trigger Cypress events in unit tests
-  let cypressHandlers: Record<string, Function>;
+  let ldCypressHandlers: Record<string, Function>;
 
 
   //  Arrange phase. This runs before every test case
@@ -26,7 +26,7 @@ describe("LogCaptureService", () => {
 
     // Initialize a fresh test context for each test
     // This mimics the runtime state during a Cypress test execution
-    context = {
+    ldContext = {
       currentScript: null,
       createdDocnames: [],
       storeDocname: [],
@@ -37,7 +37,7 @@ describe("LogCaptureService", () => {
     };
 
     // Reset Cypress handler storage before each test
-    cypressHandlers = {};
+    ldCypressHandlers = {};
 
     /**
      * Mock the global Cypress object.
@@ -47,15 +47,15 @@ describe("LogCaptureService", () => {
      */
     (global as any).Cypress = {
       on: jest.fn((event: string, handler: Function) => {
-        cypressHandlers[event] = handler;
+        ldCypressHandlers[event] = handler;
       })
     };
 
     // Create the service instance with the test context
-    service = new clLogCaptureService(context);
+    ldService = new clLogCaptureService(ldContext);
 
     // Register Cypress event listeners (log, fail, uncaught exception)
-    service.register();
+    ldService.register();
   });
 
   // Test: Capture standard Cypress log events
@@ -63,13 +63,13 @@ describe("LogCaptureService", () => {
 
     // Act: Manually trigger the "log:added" event
     // This simulates Cypress logging a normal message
-    cypressHandlers["log:added"]({
+    ldCypressHandlers["log:added"]({
       name: "log",
       message: "Test log message"
     });
 
     // Assert: Verify the log is stored in the expected formatted way
-    expect(context.capturedLogs).toEqual([
+    expect(ldContext.capturedLogs).toEqual([
       "[log] Test log message"
     ]);
   });
@@ -78,13 +78,13 @@ describe("LogCaptureService", () => {
   it("should capture Cypress assertion events", () => {
 
     // Act: Trigger assertion-related log event
-    cypressHandlers["log:added"]({
+    ldCypressHandlers["log:added"]({
       name: "assert",
       message: "Assertion passed"
     });
 
     //  Assert: Assertion logs should also be captured
-    expect(context.capturedLogs).toEqual([
+    expect(ldContext.capturedLogs).toEqual([
       "[assert] Assertion passed"
     ]);
   });
@@ -93,75 +93,58 @@ describe("LogCaptureService", () => {
   it("should ignore unsupported Cypress log event types", () => {
 
     // Act: Trigger a Cypress log type that is not relevant for capture
-    cypressHandlers["log:added"]({
+    ldCypressHandlers["log:added"]({
       name: "route",
       message: "Should be ignored"
     });
 
     // Assert: Unsupported log types should not pollute captured logs
-    expect(context.capturedLogs).toEqual([]);
+    expect(ldContext.capturedLogs).toEqual([]);
   });
 
     // Test: Handle Cypress test failure
   it("should rethrow the error on Cypress fail handler", () => {
 
     // Create a mock error similar to what Cypress throws on failure
-    const error = new Error("Something went wrong");
+    const LdError = new Error("Something went wrong");
 
     // Mock runnable metadata containing test title
-    const runnable = { title: "should do something important" };
+    const LdRunnable = { title: "should do something important" };
 
     // Act + Assert:
     // Cypress fail handler is expected to rethrow the error
     expect(() => {
-      cypressHandlers["fail"](error, runnable);
+      ldCypressHandlers["fail"](LdError, LdRunnable);
     }).toThrow("Something went wrong");
 
   });
 
     it("should mark test as failed ", () => {
 
-    const error = new Error("Something went wrong");
-    const runnable = { title: "should do something important" };
+    const LdError = new Error("Something went wrong");
+    const LdRunnable = { title: "should do something important" };
     // Act
     try {
-      cypressHandlers["fail"](error, runnable);
-    } catch {
+      ldCypressHandlers["fail"](LdError, LdRunnable);
+    } catch (error) {
       // swallow error so we can assert state change
     }
 
     // Assert: Test status should be marked as failed
-    expect(context.isTestPassed).toBe(false);
+    expect(ldContext.isTestPassed).toBe(false);
 
 
   });
-  //   it("should capture error on Cypress fail", () => {
-
-  //   const error = new Error("Something went wrong");
-  //   const runnable = { title: "should do something important" };
-
-  //   // Act
-  //   try {
-  //     cypressHandlers["fail"](error, runnable);
-  //   } catch {
-  //     // swallow error so we can assert state change
-  //   }
-  //   // Error should be logged with test title and error message
-  //   expect(context.capturedErrors).toEqual([
-  //     "Test Failed: should do something important - Something went wrong"
-  //   ]);
-  // });
-
   // Test: Suppress uncaught exceptions
   it("should suppress uncaught exceptions", () => {
 
     // Act:Trigger uncaught exception handler
     // Cypress expects returning false to prevent test crash
-    const result = cypressHandlers["uncaught:exception"](
+    const LdResult = ldCypressHandlers["uncaught:exception"](
       new Error("Random crash")
     );
 
     //Assert: Returning false tells Cypress to ignore the exception
-    expect(result).toBe(false);
+    expect(LdResult).toBe(false);
   });
 });

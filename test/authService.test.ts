@@ -8,9 +8,9 @@ jest.mock("../src/delay",() => ({
 }))
 describe("AuthService", () => {
   // Mock target URL for the AuthService instance
-  const targetUrl = "http://localhost:3000";
+  const LTargetUrl = "http://localhost:3000";
   // Create an object named authService to be used in tests
-  let authService: clAuthService;
+  let ldAuthService: clAuthService;
 
   beforeEach(() => {
     // Mock the global cy object used by Cypress
@@ -21,56 +21,56 @@ describe("AuthService", () => {
       clearLocalStorage: jest.fn(),
       }
     // Instantiate the AuthService before each test
-    authService = new clAuthService(targetUrl);
+    ldAuthService = new clAuthService(LTargetUrl);
     
   });
 
   it("should perform login with correct credentials", () => {
-    const email = "test@example.com";
-    const password = "password123";
+    const LEmail = "test@example.com";
+    const LPassword = "password123";
     // Call the login method by passing appropriate parameters
-    authService.login(email, password);
+    ldAuthService.login(LEmail, LPassword);
     // Expect cy.request to have been called with correct arguments and verify method, url, headers, and body 
       expect(cy.request).toHaveBeenCalledWith({
             method: "POST",
-            url: `${targetUrl}/api/method/login`,
+            url: `${LTargetUrl}/api/method/login`,
             headers: { Accept: "application/json", "Content-Type": "application/json" },
-            body: { usr: email, pwd: password },
+            body: { usr: LEmail, pwd: LPassword },
       });
     });
   it("should throw error when login with missing credentials", () => {
     // Call the login method with missing parameters
-    authService.login("","")
+    ldAuthService.login("","")
     // Expect cy.request not to have been called due to missing credentials
     expect(cy.request).not.toHaveBeenCalled
   })
 
   it("should perform logout", () => {
-    authService.logout();
+    ldAuthService.logout();
 
       expect(cy.request).toHaveBeenCalledWith({
             method: "GET",
-            url: `${targetUrl}/api/method/logout`,
+            url: `${LTargetUrl}/api/method/logout`,
             headers: { Accept: "application/json"},
       });
   })
   
   it("should clear cookies and local storage on logout", () => {
     // spy on clearCookies and clearLocalStorage methods instead of mocking entire cy object to check if they were called
-    const clearCookiesSpy = jest.spyOn(cy, 'clearCookies');
-    const clearLocalStorageSpy = jest.spyOn(cy, 'clearLocalStorage');
+    const LClearCookiesSpy = jest.spyOn(cy, 'clearCookies');
+    const LClearLocalStorageSpy = jest.spyOn(cy, 'clearLocalStorage');
 
-    authService.logout();
+    ldAuthService.logout();
 
-    expect(clearCookiesSpy).toHaveBeenCalled();
-    expect(clearLocalStorageSpy).toHaveBeenCalled();
+    expect(LClearCookiesSpy).toHaveBeenCalled();
+    expect(LClearLocalStorageSpy).toHaveBeenCalled();
   });
   it("should wait for medium delay on logout", () => {
     // Spy on the wait method to verify it was called with correct delay
-    const wait = jest.spyOn(cy,"wait");
-    authService.logout();
+    const LWait = jest.spyOn(cy,"wait");
+    ldAuthService.logout();
 
-    expect(wait).toHaveBeenCalledWith(500);
+    expect(LWait).toHaveBeenCalledWith(500);
 
   })
 
