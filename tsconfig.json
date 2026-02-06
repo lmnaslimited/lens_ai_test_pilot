@@ -115,7 +115,7 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "lib": ["ES6", "DOM"],
-    "types": ["cypress"]  // Add this line
+    "types": ["cypress", "jest"]  // Add this line
   },
   "include": [
     "cypress/**/*.ts",
