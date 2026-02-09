@@ -6,7 +6,7 @@ import { ifTestContext } from "../types";
  */
 
 export class clLogCaptureService {
-    constructor(private lContext: ifTestContext) {}
+    constructor(private ldContext: ifTestContext) {}
 
     /**
      * Sets up Cypress event handlers to centralize log collection,
@@ -16,13 +16,13 @@ export class clLogCaptureService {
     register() {
         Cypress.on("log:added", (idOptions) => {
             if (["log", "assert"].includes(idOptions.name)) {
-                this.lContext.capturedLogs.push(`[${idOptions.name}] ${idOptions.message}`);
+                this.ldContext.capturedLogs.push(`[${idOptions.name}] ${idOptions.message}`);
             }
         });
 
         Cypress.on("fail", (idError, idRunnable) => {
-            this.lContext.isTestPassed = false;
-            this.lContext.capturedErrors.push(`Test Failed: ${idRunnable.title} — ${idError.message}`);
+            this.ldContext.isTestPassed = false;
+            this.ldContext.capturedErrors.push(`Test Failed: ${idRunnable.title} — ${idError.message}`);
             throw idError;
         });
 

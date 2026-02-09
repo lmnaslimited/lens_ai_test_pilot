@@ -34,12 +34,14 @@ new clLogCaptureService(LdContext).register();
 
 describe("Automated Test Run", () => {
   const LdScripts = Cypress.env("FETCHED_MASTER_DATA") as any[];
-
+  //each master data in the Test Lab
+  // become separate IT
   LdScripts.forEach((ldScript) => {
     let ldRunner: {
       executeScript: (ldScript: any) => void;
       finalizeScript: () => void;
     };
+    // Determining Test Type "UI / API"
     ldRunner = clTestRunnerFactory.create(ldScript, LdContext,
       LdAuthService, LdReportService, LTargetUrl,
       LdTestLab, LdMasterData, LdLoginData

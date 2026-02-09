@@ -4,7 +4,7 @@ import { ifTestContext, ifTestRunner } from "../types";
 import { clAuthService } from "./authService";
 import { clReportService } from "./reportService";
 
-export class clTestRunnerService implements ifTestRunner {
+export class clTestRunnerUiService implements ifTestRunner {
   constructor(
     private ldContext: ifTestContext,
     private ldAuth: clAuthService,
@@ -78,7 +78,7 @@ export class clTestRunnerService implements ifTestRunner {
    */
 
   // Inject previously created document name into the script
-  // (used for connected test flows)
+  // (used for getting document name test flows)
   private injectDocumentIfRequired(idScript: any) {
     if (!idScript.actual_test_data) return;
 
@@ -124,13 +124,14 @@ export class clTestRunnerService implements ifTestRunner {
       });
   }
 
-  // Handle document creation for connected scripts
+  // Handle document creation for connection Test Cases
   private handleConnectionCreation(idScript: any) {
     if (idScript.connection !== "Create" || !idScript.connection_doctype) return;
 
     clConnectionFactory.connection(idScript).handleConnection().then((docname) => {
       if (typeof docname !== "string") return;
-
+      // updating the document name created from connection
+      // for next test script
       this.ldContext.createdDocnames.push(docname);
       this.ldContext.createdDocsByIndex.push({
         [idScript.idx]: docname,
@@ -193,6 +194,7 @@ export class clTestRunnerService implements ifTestRunner {
     laLogs: any[],
     lResult: string
   ) {
+    // create the Run Log first
     this.ldReport
       .postRunLog({
         script_id: idScriptRow.test_script,
@@ -209,7 +211,8 @@ export class clTestRunnerService implements ifTestRunner {
               ldEntry.test_script === idScriptRow.test_script &&
               ldEntry.master_data === iName
           );
-
+          // update the Test Log child table of the Test Run
+          // with Run LOg id and Test Result (Pass / Fail)
           laMatchingLogs.forEach((idEntry: any) => {
             this.ldReport.updateTestLog(idEntry.name, {
               run_log: LRunLogId,
@@ -240,6 +243,7 @@ export class clTestRunnerService implements ifTestRunner {
   }
 }
 
+/** API Test Type */
 class TestRunnerApiService implements ifTestRunner {
   constructor(private ldContext: ifTestContext) {}
 
@@ -267,7 +271,7 @@ export class clTestRunnerFactory {
   ): ifTestRunner {
     switch (idScript.test_type) {
       case "UI":
-        return new clTestRunnerService(
+        return new clTestRunnerUiService(
           ldContext,
           ldAuth,
           ldReport,

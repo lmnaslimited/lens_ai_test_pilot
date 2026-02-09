@@ -30,7 +30,8 @@ export class clReportService {
     }
     
     /**
-     * Updates an existing Test Log.
+     * Updates an existing Test Run Child table Test Log.
+     * with result Pass or Fail
      */
     updateTestLog(lTestLogId: string, payload: any) {
         return cy.request({
