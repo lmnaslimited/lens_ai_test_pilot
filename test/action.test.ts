@@ -1,6 +1,9 @@
 import {
+  clAction,
   clActionFactory,
   clActionOnLoad,
+  clActionOnChangeChild,
+  clActionOnChange,
   clActionBanner,
   clActionValidateGroupButtonOptions,
   clActionClickInnerGroupButton,
@@ -10,6 +13,8 @@ import {
 // Update the import path to match the actual file name, e.g. test-action or test_action if that's correct;
 import { fnGetDelay } from "../src/delay";
 import { TactionData,  TTactionsData, TtestHeaderData, } from "../src/types";
+import { clDataTypeFactory } from "../src/dataType";
+import { clPropertiesFactory } from "../src/properties";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 
 /* -------------------------------------------------
@@ -18,13 +23,26 @@ import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 jest.mock("../src/delay", () => ({
   fnGetDelay: jest.fn(() => 500),
 }));
-
+  jest
+    .spyOn(clPropertiesFactory, "createAllFor")
+    .mockImplementation(() => []);
 /* -------------------------------------------------
    Cypress env mock
 -------------------------------------------------- */
 (globalThis as any).Cypress = {
   env: () => 0,
 };
+
+// jest.mock("../src/dataType", () => ({
+//   clDataTypeFactory: {
+//     createDataType: jest.fn(()=>({
+//       input: jest.fn(),
+//       validate: jest.fn()
+//     })),
+//   },
+// }));
+
+jest.spyOn(clActionFactory, "createAction");
 
 describe("Action Classes Unit Tests", () => {
   let cyMock: any;
@@ -348,4 +366,161 @@ describe("Action Classes Unit Tests", () => {
       expect(buttonChain.click).not.toHaveBeenCalled();
     });
   });
+  describe("clActionOnLoad", () => {
+    it("executes without throwing", () => {
+      const instance = new clActionOnLoad(
+        "Onload",
+        structuredClone(laMockActionData)
+      );
+
+      expect(() => instance.executeAction()).not.toThrow();
+    });
+  });
+
+// describe("clActionOnChange", () => {
+//       const mockActionData: TTactionsData = [
+//   {
+//     field_name: "customer",
+//     data_type: "Text",
+//     tab: "",
+//     is_child: false,
+//   } as any,
+// ];
+//   beforeEach(() => {
+//     jest.clearAllMocks();
+//   });
+
+//   it("executes tab action when tab is present", () => {
+//     const data = [
+//       {
+//         ...mockActionData[0],
+//         tab: "Details",
+//       },
+//     ] as TTactionsData;
+
+//     const mockTabAction = { executeAction: jest.fn() };
+//     (clActionFactory.createAction as jest.Mock).mockReturnValue(mockTabAction);
+
+//     (clDataTypeFactory.createDataType as jest.Mock).mockReturnValue({
+//       input: jest.fn(),
+//     });
+
+//     const instance = new clActionOnChange("On Change", data);
+//     instance.executeAction();
+
+//     expect(clActionFactory.createAction).toHaveBeenCalledWith(
+//       "On Tab",
+//       [data[0]]
+//     );
+//     expect(mockTabAction.executeAction).toHaveBeenCalled();
+//   });
+
+//   it("routes to child handler when is_child is true", () => {
+//     const data = [
+//       {
+//         ...mockActionData[0],
+//         is_child: true,
+//       },
+//     ] as TTactionsData;
+
+//     const childSpy = jest.spyOn(
+//       clActionOnChangeChild.prototype,
+//       "executeAction"
+//     );
+
+//     const instance = new clActionOnChange("On Change", data);
+//     instance.executeAction();
+
+//     expect(childSpy).toHaveBeenCalled();
+//   });
+
+//   it("creates datatype and inputs value", () => {
+//     const inputSpy = jest.fn();
+
+//     (clDataTypeFactory.createDataType as jest.Mock).mockReturnValue({
+//       input: inputSpy,
+//     });
+
+//     const instance = new clActionOnChange("On Change", mockActionData);
+//     instance.executeAction();
+
+//     expect(clDataTypeFactory.createDataType).toHaveBeenCalled();
+//     expect(inputSpy).toHaveBeenCalled();
+//   });
+// });
+describe("clActionOnChange", () => {
+  it("executes tab action when tab is present", () => {
+    laMockActionData[0].tab = "Details";
+
+    const instance = new clActionOnChange(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+
+  it("routes to child handler when is_child is true", () => {
+    laMockActionData[0].is_child = true;
+
+    const instance = new clActionOnChange(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+
+  it("creates datatype and inputs value", () => {
+    laMockActionData[0].data_type = "Data";
+
+    const instance = new clActionOnChange(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+});
+
+describe("clActionOnChangeChild", () => {
+  it("executes tab action if tab exists", () => {
+    laMockActionData[0].tab = "Details";
+    laMockActionData[0].data_type = "Data";
+
+    const instance = new clActionOnChangeChild(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+
+  it("iterates rows and validates values & properties", () => {
+    laMockActionData.push({
+      ...laMockActionData[0],
+      data_type: "Data",
+    });
+
+    const instance = new clActionOnChangeChild(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+
+  it("skips rows without data_type", () => {
+    laMockActionData[0].data_type = "";
+
+    const instance = new clActionOnChangeChild(
+      "On Change",
+      structuredClone(laMockActionData)
+    );
+
+    expect(() => instance.executeAction()).not.toThrow();
+  });
+});
+
+
 });

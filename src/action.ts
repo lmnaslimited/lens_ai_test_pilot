@@ -9,7 +9,7 @@ import { ifActionHandler, ifDataType, TTactionsData, TactionData,
 
 /** @class clAction - Base abstract class for executing actions on data fields. */
 //clAction base class which implements the ifHandler interface
-abstract class clAction implements ifActionHandler {
+export abstract class clAction implements ifActionHandler {
     action: string;
     actionData: TTactionsData;
     dataType: ifDataType;
