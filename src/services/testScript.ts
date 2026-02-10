@@ -244,14 +244,293 @@ export class clTestRunnerUiService implements ifTestRunner {
 }
 
 /** API Test Type */
-class TestRunnerApiService implements ifTestRunner {
-  constructor(private ldContext: ifTestContext) {}
+export class clTestRunnerApiService implements ifTestRunner {
+  constructor(
+    private ldContext: ifTestContext,
+    private readonly lTargetUrl: string,
+    private readonly ldLoginData: any,
+    private readonly ldTestLabData: any,
+    private ldReport: clReportService
+  ) {}
 
   executeScript(idScript: any) {
-    throw new Error("API Test Runner not implemented yet");
+    this.ldContext.currentScript = idScript;
+
+    const LdCreds = this.ldLoginData[idScript.name];
+    if (!LdCreds) {
+      throw new Error(`No login credentials for ${idScript.name}`);
+    }
+
+    ApiBuilderFactory.execute({
+      targetUrl: this.lTargetUrl,
+      script: idScript,
+      auth: {
+        user: LdCreds.email,
+        pass: LdCreds.password,
+      },
+      context: this.ldContext,
+    });
   }
 
-  finalizeScript() {}
+  finalizeScript() {
+    // uses same finalize logic as UI runner (handled in caller)
+    if (!this.ldContext.currentScript) return;
+
+    const LdLogs = this.buildLogEntries();
+    const LdResult = this.ldContext.isTestPassed ? "Pass" : "Fail";
+    const LaScriptNames = this.resolveScriptNames(this.ldContext.currentScript.name);
+
+    LaScriptNames.forEach((iName) => {
+      const LdScriptRow = this.findTestLabRow(iName);
+      if (!LdScriptRow) return;
+
+      this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
+    });
+
+    this.resetContext();
+  }
+
+  private buildLogEntries() {
+    return [
+      ...this.ldContext.capturedLogs.map((iMessage) => ({ type: "Log", message: iMessage })),
+      ...this.ldContext.capturedErrors.map((iMessage) => ({ type: "Error", message: iMessage })),
+    ];
+  }
+
+  // Resolve script names when multiple scripts are combined
+  private resolveScriptNames(iName: string): string[] {
+    return iName.includes("&")
+      ? iName.split("&").map((iTrim) => iTrim.trim())
+      : [iName];
+  }
+
+  // Find test lab row by master data name
+  private findTestLabRow(iMasterDataName: string) {
+    return this.ldTestLabData.test_lab_script.find(
+      (idRow: any) => idRow.master_data === iMasterDataName
+    );
+  }
+
+  // Post run log and update test log entries
+  private postAndUpdateRunLog(
+    idScriptRow: any,
+    iName: string,
+    laLogs: any[],
+    lResult: string
+  ) {
+    // create the Run Log first
+    this.ldReport
+      .postRunLog({
+        script_id: idScriptRow.test_script,
+        master_data_id: iName,
+        test_run_id: Cypress.env("FETCHED_TEST_RUN"),
+        log_entries: laLogs,
+      })
+      .then((ldRunLogResponse: Cypress.Response<any>) => {
+        const LRunLogId = ldRunLogResponse.body.data.name;
+
+        return this.ldReport.getTestRun().then((ldTestRunResponse: Cypress.Response<any>) => {
+          const laMatchingLogs = ldTestRunResponse.body.data.test_log.filter(
+            (ldEntry: any) =>
+              ldEntry.test_script === idScriptRow.test_script &&
+              ldEntry.master_data === iName
+          );
+          // update the Test Log child table of the Test Run
+          // with Run LOg id and Test Result (Pass / Fail)
+          laMatchingLogs.forEach((idEntry: any) => {
+            this.ldReport.updateTestLog(idEntry.name, {
+              run_log: LRunLogId,
+              result: lResult,
+            });
+          });
+        });
+      });
+  }
+
+  /**
+   * Cleanup & utilities
+   */
+
+  // Reset execution context after script completion
+  private resetContext() {
+    this.ldContext.capturedErrors = [];
+    this.ldContext.capturedLogs = [];
+    this.ldContext.isTestPassed = true;
+    this.ldContext.currentScript = null;
+  }
+}
+
+/**
+ * ApiBuilderFactory
+ * Single source of truth for API execution
+ */
+class ApiBuilderFactory {
+  static execute({
+    targetUrl,
+    script,
+    auth,
+    context,
+  }: {
+    targetUrl: string;
+    script: any;
+    auth: { user: string; pass: string };
+    context: ifTestContext;
+  }) {
+    // 1️⃣ Login using username & password (session-based)
+    this.login(targetUrl, auth).then(() => {
+      const url = this.buildUrl(targetUrl, script);
+      const payload = this.buildPayload(script)
+
+      const requestOptions: Partial<Cypress.RequestOptions> = {
+        method: script.action,
+        url,
+        failOnStatusCode: false,
+      };
+      
+      if (script.action !== "GET" && payload) {
+        requestOptions.body = payload;
+      }
+      
+      cy.request(requestOptions as Cypress.RequestOptions).then((resp: Cypress.Response<any>) => {
+        this.validateResponse(script, resp, payload, context);
+      });
+    });
+  }
+
+/**
+   * Frappe session login
+   */
+private static login(targetUrl: string, auth: { user: string; pass: string }) {
+  return cy.request({
+    method: "POST",
+    url: `${targetUrl}/api/method/login`,
+    form: true,
+    body: {
+      usr: auth.user,
+      pwd: auth.pass,
+    },
+  });
+}
+
+  /**
+   * URL builder
+   * Handles:
+   * - api_type = method | resource
+   * - optional document
+   * - filters
+   */
+  private static buildUrl(targetUrl: string, script: any): string {
+    const laParts: string[] = [
+      targetUrl,
+      "api",
+      script.api_type,
+    ];
+
+    if (script.api_type !== "method") {
+      laParts.push(script.doctype_to_be_tested);
+    }
+
+    if (script.document) {
+      laParts.push(script.document);
+    }
+
+    return `${laParts.join("/")}${this.buildFilters(script.filters)}`;
+  }
+
+  /**
+   * Converts:
+   * name=Morgan&status=Active
+   * ->
+   * ?filters=[["name","=","Morgan"],["status","=","Active"]]
+   */
+  private static buildFilters(iFilters?: string): string {
+    if (!iFilters) return "";
+
+    const laFilters = iFilters.split("&").map((pair: string) => {
+      const [key, value] = pair.split("=");
+      return [key, "=", value];
+    });
+
+    return `?filters=${encodeURIComponent(JSON.stringify(laFilters))}`;
+  }
+
+  /**
+   * Payload builder
+   * - POST / PUT → body
+   * - GET → validation reference
+   */
+  private static buildPayload(script: any) {
+    const ldDesc = script.actual_test_data[0]?.description;
+    if (!ldDesc) return undefined;
+
+    return typeof ldDesc === "string" ? JSON.parse(ldDesc) : ldDesc;
+  }
+
+  /**
+   * Response validation & context update
+   */
+  private static validateResponse(
+    script: any,
+    resp: Cypress.Response<any>,
+    payload: any,
+    context: ifTestContext
+  ) {
+    cy.then(() => {
+      // ---- STATUS VALIDATION ----
+      if (resp.status >= 400) {
+        const msg = `API ${script.action} failed for ${script.name} (Status ${resp.status})`;
+  
+        // Cypress UI
+        cy.log(msg);
+  
+        // Run Log
+        context.isTestPassed = false;
+        context.capturedErrors.push(msg);
+  
+        throw new Error(msg);
+      }
+  
+      if (script.action === "GET" && payload) {
+        cy.then(() => {
+          // Validate structure
+          expect(resp.body).to.have.property("data");
+          expect(resp.body.data).to.be.an("array");
+          expect(resp.body.data.length).to.be.greaterThan(0);
+      
+          // Pick the first matching row
+          const actualRow = resp.body.data[0];
+      
+          // Strict field-level assertions
+          Object.entries(payload).forEach(([key, expected]) => {
+            const actual = actualRow[key];
+      
+            cy.log(`Validating field: ${key}`);
+            cy.log(`Expected: ${JSON.stringify(expected)}`);
+            cy.log(`Actual: ${JSON.stringify(actual)}`);
+      
+            if (actual === undefined) {
+              throw new Error(`Field '${key}' not found in response`);
+            }
+      
+            expect(actual).to.deep.equal(expected);
+      
+            context.capturedLogs.push(
+              `GET validation passed → ${key}: ${JSON.stringify(expected)}`
+            );
+          });
+        });
+      }
+      
+      
+  
+      // ---- FINAL SUCCESS LOG ----
+      const successMsg = `API ${script.action} passed for ${script.name}`;
+  
+      // Cypress UI
+      cy.log(successMsg);
+    });
+  }
+  
 }
 
 /**
@@ -282,7 +561,7 @@ export class clTestRunnerFactory {
         );
 
       case "API":
-        return new TestRunnerApiService(ldContext);
+        return new clTestRunnerApiService(ldContext, lTargetUrl, ldLoginData, ldTestLabData, ldReport);
 
       default:
         throw new Error(`Unsupported test type: ${idScript.test_type}`);
