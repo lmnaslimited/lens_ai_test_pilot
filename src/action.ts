@@ -329,7 +329,7 @@ export class clActionAttachments extends clAction {
         this.actionRow = this.actionData[0];
 
         const LaAttachmentNames = this.actionRow.message
-            ?.split(',')
+            ?.split(', ')
             .map(name => name.trim())
             .filter(Boolean);
 
@@ -363,7 +363,7 @@ export class clActionAssignments extends clAction {
         this.actionRow = this.actionData[0];
 
         const LaAssignedUsers = this.actionRow.message
-            ?.split(',')
+            ?.split(', ')
             .map(user => user.trim())
             .filter(Boolean);
 
