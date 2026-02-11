@@ -453,44 +453,67 @@ Purpose:
   //clActionBreadCrumbs - This suite validate the document id in the
   // document
   describe("Test Suite for clActionBreadCrumbs", () => {
+    let ldBreadInstance: clActionBreadcrumbs
     beforeEach(()=>{
+        // Arrange
       // Test Action Data row for Bread Crumbs
       laMockActionData[0].action = "Validate BreadCrumb"
       laMockActionData[0].value = "Quo-001"
 
-      let ldBreadInstance = new clActionBreadcrumbs(
+      ldBreadInstance = new clActionBreadcrumbs(
         "Validate Breadcrumbs",
         laMockActionData
       )
-      ldBreadInstance.executeAction()
     })
-    it("Breadcrumb action class is instantiated correctly",()=>{
+    it("Should call Breadcrumbs action class when action is Validate Breadcrumbs",()=>{
+        // Act
       const ldAction = clActionFactory.createAction(
         "Validate BreadCrumb", laMockActionData
       )
+      // Assert
       // Expect the created action to be 
       // an instance of clActionBreadCrumbs
       expect(ldAction).toBeInstanceOf(clActionBreadcrumbs)
     })
+    it("Should not call Breadcrumbs action class when action is not Validate Breadcrumbs",()=>{
+        // Act 
+        const ldAction = clActionFactory.createAction(
+            "Onload", laMockActionData
+          )
+        // Assert
+        // Expect the created action to be not
+        // an instance of clActionBreadCrumbs
+        expect(ldAction).not.toBeInstanceOf(clActionBreadcrumbs)
+      })
 
-    it("Document ID element is selected",() => {
+    it("Should locate the document id in braedcrumbs",() => {
+      ldBreadInstance.executeAction()
       // Expect breadcrumb selector to 
       // target the last document ID link
       expect(cyMock.get).toHaveBeenCalledWith('#navbar-breadcrumbs li:last-child a')
     })
-    it("Document ID matches expected value", () => {
+
+    it("Should hav expected document id", () => {
+        // Act
+        ldBreadInstance.executeAction()
+
+      // Assert
       // Expect the breadcrumb text to 
       // contain the expected document ID
       expect(cyChain.should).toHaveBeenCalledWith(
         "contain.text",
         "Quo-001")
     })
-    it("Should not pass for an incorrect document ID", () => {
-      // Expect assertion to fail when 
-      // document ID does not match
-      expect(cyChain.should).not.toHaveBeenCalledWith(
-        "contain.text",
-        "Quo-002")
+
+    it("Should throw an error if no value was configured for breadcrumbs", ()=>{
+        // arrange
+        laMockActionData[0].value = ""
+        ldBreadInstance = new clActionBreadcrumbs(
+            "Validate Breadcrumbs",
+            laMockActionData
+          )
+        // Act + Assert
+        expect(()=> ldBreadInstance.executeAction()).toThrow("No value was configured for Breadcrumbs")
     })
   })
 });
