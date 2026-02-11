@@ -1,7 +1,7 @@
 // Import all action classes that are being tested
 import {
-  clValidateAssign, 
-  clValidateAttachmentAction
+  clActionAssignments, 
+  clActionAttachments
 } from "../src/action";
 
 // Import delay helper (used to simulate waiting in UI)
@@ -50,6 +50,7 @@ Why:
       click: jest.fn(() => cyChain),
       last: jest.fn(() => cyChain),
       contains: jest.fn(() => cyChain),
+      filter: jest.fn(() => cyChain),   
     };
 
     cyMock = {
@@ -101,50 +102,47 @@ Why:
       } as TactionData,
     ];
   });
-  describe("clValidateAssign", () => {
-    let ldInstance: clValidateAssign;
+  describe("clActionAssignments", () => {
+    let ldInstance: clActionAssignments;
     beforeEach(() => {
+      // GIVEN: Action data contains assignment configuration
+      laMockActionData[0].action = "Validate Assignee";
+      laMockActionData[0].message = "finance.user@example.com";
       // Create a fresh Banner action before every test
       // structuredClone ensures test data is not mutated across tests
-      ldInstance = new clValidateAssign(
-        "validateassign",
+       
+      ldInstance = new clActionAssignments(
+        "Validate Assignee",
         structuredClone(laMockActionData)
       );
+
     });
     it("should assign document to configured user when assignment rule exists", () => {
-      // GIVEN: Action data contains assignment configuration
-      laMockActionData[0].action = "validateassign";
-      laMockActionData[0].message = "finance.user@example.com";
+  
 
       // WHEN
       ldInstance.executeAction();
 
       // THEN
-      expect(cyChain.should).toHaveBeenCalledWith("Assign To");
-      expect(cyChain.should).toHaveBeenCalledWith("finance.user@example.com");
+      expect(cyChain.should).toHaveBeenCalledWith("have.length",1);
+      expect(cyChain.filter).toHaveBeenCalledWith(`[title="finance.user@example.com"]`);
+      expect(cyChain.should).toHaveBeenCalledWith("be.visible");
     });
     it("should throw error when no assignee is configured", () => {
         // GIVEN: Assignment rule exists but no user defined
-        laMockActionData[0].action = "validateassign";
-        laMockActionData[0].message = "";
-    
+        laMockActionData[0].action = "Validate Assignee";
+        laMockActionData[0].message = ""          
+      ldInstance = new clActionAssignments(
+        "Validate Assignee",
+        structuredClone(laMockActionData)
+      );
         // WHEN + THEN
         expect(() => ldInstance.executeAction()).toThrow(
-          "Assignment target user is not defined"
-        );
-    });
-    it("should throw error when no assignee is configured", () => {
-        // GIVEN: Assignment rule exists but no user defined
-        laMockActionData[0].action = "validateassign";
-        laMockActionData[0].value = "";
-    
-        // WHEN + THEN
-        expect(() => ldInstance.executeAction()).toThrow(
-          "Assignment target user is not defined"
+          "Assigned user name(s) are missing"
         );
     });
   });
-  describe("clValidateAttachmentAction - Exact Attachment Validation", () => {
+  describe("clActionAttachments - Exact Attachment Validation", () => {
 
     let ldInstance: any;
     
@@ -153,7 +151,7 @@ Why:
       laMockActionData[0].message =
         "Technical Datasheet_en.pdf, Technical Datasheet_fr.pdf, Technical Datasheet_de.pdf, invoice_pdf.pdf";
     
-      ldInstance = new clValidateAttachmentAction (
+      ldInstance = new clActionAttachments (
         "validateattachment",
         structuredClone(laMockActionData)
       );
