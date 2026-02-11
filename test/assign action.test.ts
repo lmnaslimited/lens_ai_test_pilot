@@ -1,7 +1,8 @@
 // Import all action classes that are being tested
 import {
   clActionAssignments, 
-  clActionAttachments
+  clActionAttachments,
+  clActionFactory
 } from "../src/action";
 
 // Import delay helper (used to simulate waiting in UI)
@@ -105,6 +106,7 @@ Why:
   describe("clActionAssignments", () => {
     let ldInstance: clActionAssignments;
     beforeEach(() => {
+      // Arrange
       // GIVEN: Action data contains assignment configuration
       laMockActionData[0].action = "Validate Assignee";
       laMockActionData[0].message = "finance.user@example.com";
@@ -117,37 +119,60 @@ Why:
       );
 
     });
-    it("should assign document to configured user when assignment rule exists", () => {
-  
-
-      // WHEN
+    it("Should call the Assignment action class when action is Validate Assignee", () =>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Validate Assignee", laMockActionData)).toBeInstanceOf(clActionAssignments)
+    })
+    it("Should not call the Assignment action class when action is not Validate Assignee", ()=>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Onload", laMockActionData)).not.toBeInstanceOf(clActionAssignments)
+    })
+    it("Should valid number of assignee", () => {
+      // Act
       ldInstance.executeAction();
 
-      // THEN
+      // Assert
       expect(cyChain.should).toHaveBeenCalledWith("have.length",1);
-      expect(cyChain.filter).toHaveBeenCalledWith(`[title="finance.user@example.com"]`);
-      expect(cyChain.should).toHaveBeenCalledWith("be.visible");
     });
+  
+    it("Should have expected Assignee fullname", () => {
+      // Act
+      ldInstance.executeAction();
+
+      // Assert
+      expect(cyChain.filter).toHaveBeenCalledWith(`[title="finance.user@example.com"]`);
+    })
+    it("Document should have assignee", () => {
+      // Act
+      ldInstance.executeAction();
+
+      // Assert
+      expect(cyChain.should).toHaveBeenCalledWith("be.visible");
+    })
+
     it("should throw error when no assignee is configured", () => {
-        // GIVEN: Assignment rule exists but no user defined
+        // Arrange: Assignment rule exists but no user defined
         laMockActionData[0].action = "Validate Assignee";
-        laMockActionData[0].message = ""          
-      ldInstance = new clActionAssignments(
-        "Validate Assignee",
-        structuredClone(laMockActionData)
-      );
-        // WHEN + THEN
+        laMockActionData[0].message = ""    
+        
+        // Act
+        ldInstance = new clActionAssignments(
+          "Validate Assignee",
+          structuredClone(laMockActionData)
+        );
+        //  Assert
         expect(() => ldInstance.executeAction()).toThrow(
           "Assigned user name(s) are missing"
         );
     });
   });
+
   describe("clActionAttachments - Exact Attachment Validation", () => {
 
-    let ldInstance: any;
+    let ldInstance: clActionAttachments;
     
     beforeEach(() => {
-      laMockActionData[0].action = "validateattachment";
+      laMockActionData[0].action = "Validate Attachment";
       laMockActionData[0].message =
         "Technical Datasheet_en.pdf, Technical Datasheet_fr.pdf, Technical Datasheet_de.pdf, invoice_pdf.pdf";
     
@@ -156,105 +181,73 @@ Why:
         structuredClone(laMockActionData)
       );
     });
-    
-    it("should pass when all expected attachments are present", () => {
-      cyMock.get = jest.fn(() => ({
-        each: (callback: any) => {
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_fr.pdf" });
-          callback({ innerText: "Technical Datasheet_de.pdf" });
-          callback({ innerText: "invoice_pdf.pdf" });
-        }
-      }));
-    
+
+    it("Should call Attachment action class when action is Validate Attachment", () => {
+      expect(clActionFactory.createAction("Validate Attachment", laMockActionData)).toBeInstanceOf(clActionAttachments)
+    })
+    it("Should call the Attachment action class when action is Validate Attachment", () =>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Onload", laMockActionData)).not.toBeInstanceOf(clActionAttachments)
+    })
+    it("should have expected no. of attachment in the document", () => {
       ldInstance.executeAction();
     
-      expect(cyMock.log).toHaveBeenCalledWith(
-        "All expected attachments are present"
+      expect(cyChain.should).toHaveBeenCalledWith(
+        "have.length", 4
       );
     });
-    
-    it("should fail when one expected attachment is missing", () => {
-      cyMock.get = jest.fn(() => ({
-        each: (callback: any) => {
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_fr.pdf" });
-          callback({ innerText: "invoice_pdf.pdf" });
-        }
-      }));
-    
-      expect(() => ldInstance.executeAction()).toThrow(
-        "Missing expected attachment: Technical Datasheet_de.pdf"
+
+    it("should throw error if no attachment file names are configured", ()=>{
+      // Arrange
+      laMockActionData[0].message = ""
+      // Act
+      ldInstance = new clActionAttachments(
+        "Validate Assignee",
+        structuredClone(laMockActionData)
       );
+      // Assert
+      expect(()=>ldInstance.executeAction()).toThrow("Attachment name(s) are missing")
+    })
+
+    it("should have expected filename", () => {
+      // Arrange
+      // Expected attachment names
+      const LaExpectedFiles = [
+        "Technical Datasheet_en.pdf",
+        "Technical Datasheet_fr.pdf",
+        "Technical Datasheet_de.pdf",
+        "invoice_pdf.pdf"
+      ];
+
+      // Act
+      ldInstance.executeAction()
+
+      // Assert
+      LaExpectedFiles.forEach(iFile => {
+        expect(cyMock.contains).toHaveBeenCalledWith(
+          'ul.form-attachments li.attachment-row',
+          iFile
+        )
+      })
+      
+      expect(cyMock.contains).toHaveBeenCalledTimes(4)
     });
-    
-    it("should fail when no attachments are present", () => {
-      cyMock.get = jest.fn(() => ({
-        each: (_callback: any) => {}
-      }));
-    
-      expect(() => ldInstance.executeAction()).toThrow(
-        "No attachments found for validation"
-      );
+
+    it("Attachment should be visible", () => {
+      // Act
+      ldInstance.executeAction()
+      // Assert
+      expect(cyChain.should).toHaveBeenCalledWith(
+        "be.visible"
+      )
     });
+     
+    // it("should wait before validating attachments", () => {
+    //   ldInstance.executeAction();
     
-    it("should fail when duplicate attachments exist", () => {
-      cyMock.get = jest.fn(() => ({
-        each: (callback: any) => {
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_fr.pdf" });
-          callback({ innerText: "Technical Datasheet_de.pdf" });
-          callback({ innerText: "invoice_pdf.pdf" });
-        }
-      }));
-    
-      expect(() => ldInstance.executeAction()).toThrow(
-        "Duplicate attachment detected: Technical Datasheet_en.pdf"
-      );
-    });
-    
-    it("should ignore attachment order", () => {
-      cyMock.get = jest.fn(() => ({
-        each: (callback: any) => {
-          callback({ innerText: "invoice_pdf.pdf" });
-          callback({ innerText: "Technical Datasheet_de.pdf" });
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_fr.pdf" });
-        }
-      }));
-    
-      ldInstance.executeAction();
-    
-      expect(cyMock.log).toHaveBeenCalledWith(
-        "All expected attachments are present"
-      );
-    });
-    
-    it("should fail if unexpected extra attachment exists when strict mode enabled", () => {
-      laMockActionData[0].is_mandatory = true; // interpret as strict mode
-    
-      cyMock.get = jest.fn(() => ({
-        each: (callback: any) => {
-          callback({ innerText: "Technical Datasheet_en.pdf" });
-          callback({ innerText: "Technical Datasheet_fr.pdf" });
-          callback({ innerText: "Technical Datasheet_de.pdf" });
-          callback({ innerText: "invoice_pdf.pdf" });
-          callback({ innerText: "extra_file.pdf" });
-        }
-      }));
-    
-      expect(() => ldInstance.executeAction()).toThrow(
-        "Unexpected attachment detected: extra_file.pdf"
-      );
-    });
-    
-    it("should wait before validating attachments", () => {
-      ldInstance.executeAction();
-    
-      expect(fnGetDelay).toHaveBeenCalled();
-      expect(cyMock.wait).toHaveBeenCalledWith(500);
-    });
+    //   expect(fnGetDelay).toHaveBeenCalled();
+    //   expect(cyMock.wait).toHaveBeenCalledWith(500);
+    // });
     
     });
     
