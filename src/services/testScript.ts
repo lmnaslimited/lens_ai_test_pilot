@@ -434,24 +434,28 @@ private static login(targetUrl: string, auth: { user: string; pass: string }) {
       laParts.push(script.document);
     }
 
-    return `${laParts.join("/")}${this.buildFilters(script.filters)}`;
+    return `${laParts.join("/")}${this.buildParams(script.params)}`;
   }
 
   /**
-   * Converts:
-   * name=Morgan&status=Active
-   * ->
-   * ?filters=[["name","=","Morgan"],["status","=","Active"]]
+   * Appends params exactly as entered in UI
+   *
+   * Supports:
+   * Resource:
+   *   filters=[["name","=","Morgan"]]
+   *
+   * Method:
+   *   key=value&key2=value2
    */
-  private static buildFilters(iFilters?: string): string {
-    if (!iFilters) return "";
+  private static buildParams(iParams?: string): string {
+    if (!iParams) return "";
 
-    const laFilters = iFilters.split("&").map((pair: string) => {
-      const [key, value] = pair.split("=");
-      return [key, "=", value];
-    });
+    // If already starts with ?, don't duplicate
+    if (iParams.startsWith("?")) {
+      return iParams;
+    }
 
-    return `?filters=${encodeURIComponent(JSON.stringify(laFilters))}`;
+    return `?${iParams}`;
   }
 
   /**
@@ -476,7 +480,7 @@ private static login(targetUrl: string, auth: { user: string; pass: string }) {
     context: ifTestContext
   ) {
     cy.then(() => {
-      // ---- STATUS VALIDATION ----
+      // STATUS VALIDATION
       if (resp.status >= 400) {
         const msg = `API ${script.action} failed for ${script.name} (Status ${resp.status})`;
   
@@ -492,13 +496,8 @@ private static login(targetUrl: string, auth: { user: string; pass: string }) {
   
       if (script.action === "GET" && payload) {
         cy.then(() => {
-          // Validate structure
-          expect(resp.body).to.have.property("data");
-          expect(resp.body.data).to.be.an("array");
-          expect(resp.body.data.length).to.be.greaterThan(0);
       
-          // Pick the first matching row
-          const actualRow = resp.body.data[0];
+          const actualRow = this.extractResponseData(script, resp);
       
           // Strict field-level assertions
           Object.entries(payload).forEach(([key, expected]) => {
@@ -520,15 +519,30 @@ private static login(targetUrl: string, auth: { user: string; pass: string }) {
           });
         });
       }
-      
-      
-  
-      // ---- FINAL SUCCESS LOG ----
+
+      // FINAL SUCCESS LOG
       const successMsg = `API ${script.action} passed for ${script.name}`;
   
       // Cypress UI
       cy.log(successMsg);
     });
+  }
+
+  private static extractResponseData(
+    script: any,
+    resp: Cypress.Response<any>
+  ) {
+    if (script.api_type === "resource") {
+      return resp.body.data?.[0];
+    }
+  
+    if (script.api_type === "method") {
+      return Array.isArray(resp.body.message)
+        ? resp.body.message[0]
+        : resp.body.message;
+    }
+  
+    throw new Error(`Unsupported api_type: ${script.api_type}`);
   }
   
 }
