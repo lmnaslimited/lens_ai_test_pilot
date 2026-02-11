@@ -1,351 +1,458 @@
+// Import all action classes that are being tested
 import {
-  clActionFactory,
-  clActionOnLoad,
-  clActionBanner,
-  clActionValidateGroupButtonOptions,
-  clActionClickInnerGroupButton,
-  clActionCreation,
-  clActionUpdate,
+clActionFactory, // Factory that decides which action to create
+clActionOnLoad, // Action that runs on page load
+clActionBanner, // Action that validates banner messages
+clActionValidateGroupButtonOptions, // Action that checks dropdown menu options
+clActionClickInnerGroupButton, // Action that clicks a menu item inside a button
+clActionCreation, // Action used when creating a document
+clActionUpdate, // Action used when updating a document
 } from "../src/action";
-// Update the import path to match the actual file name, e.g. test-action or test_action if that's correct;
+
+// Import delay helper (used to simulate waiting in UI)
 import { fnGetDelay } from "../src/delay";
-import { TactionData,  TTactionsData, TtestHeaderData, } from "../src/types";
+
+// Import shared data types used by actions
+import { TactionData, TTactionsData, TtestHeaderData } from "../src/types";
+
+// Import Jest helpers for writing tests
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 
-/* -------------------------------------------------
-   Delay mock
--------------------------------------------------- */
+// Delay mock-In real application, fnGetDelay returns different wait times
+// For testing, we force it to always return 500ms
+// This keeps tests predictable and fast
 jest.mock("../src/delay", () => ({
-  fnGetDelay: jest.fn(() => 500),
+fnGetDelay: jest.fn(() => 500),
 }));
 
-/* -------------------------------------------------
-   Cypress env mock
--------------------------------------------------- */
+// Cypress env mock-Cypress normally provides environment values at runtime
+// Since we are running unit tests (not real Cypress tests),
+// we mock the minimum behaviour needed
 (globalThis as any).Cypress = {
-  env: () => 0,
+env: () => 0,
 };
 
+// This suite groups all Action-related unit tests
 describe("Action Classes Unit Tests", () => {
-  let cyMock: any;
-  let ldBannerChain: any;
-  let ldButtonChain: any;
-  let ldMenuChain: any;
 
-  /* -------------------------------------------------
-     GLOBAL MOCK ACTION DATA (single source of truth)
-  -------------------------------------------------- */
-  let laMockActionData: TactionData[];
+// These variables simulate Cypress command chains
+// They allow us to verify that certain UI actions were triggered
+let cyMock: any;
+let cyChain: any;
 
-  beforeEach(() => {
-    /* ---------- Cypress chain mocks ---------- */
+// GLOBAL MOCK ACTION DATA
+// This array represents action configuration rows
+// Think of this as test input coming from a test case setup screen
+let laMockActionData: TactionData[];
 
-    ldBannerChain = {
-      last: jest.fn(() => ldBannerChain),
-      should: jest.fn(() => ldBannerChain),
-    };
+// beforeEach runs before EVERY test
+beforeEach(() => {
 
-    ldButtonChain = {
-      should: jest.fn(() => ldButtonChain),
-      click: jest.fn(() => ldButtonChain),
-    };
+/*Generic Cypress chain mock
+Why:
+- Cypress commands are chainable
+- Tests verify intent, not DOM structure */
+cyChain = {
+should: jest.fn(() => cyChain),
+click: jest.fn(() => cyChain),
+last: jest.fn(() => cyChain),
+contains: jest.fn(() => cyChain),
+};
 
-    ldMenuChain = {
-      contains: jest.fn(() => ldMenuChain),
-      should: jest.fn(() => ldMenuChain),
-      click: jest.fn(() => ldMenuChain),
-    };
+cyMock = {
+get: jest.fn(() => cyChain),
+contains: jest.fn(() => cyChain),
+wait: jest.fn(),
+log: jest.fn(),
+};
 
-    cyMock = {
-      get: jest.fn((selector: string) => {
-        if (selector?.includes(".form-message")) return ldBannerChain;
-        if (selector === "a.dropdown-item") return ldMenuChain;
-        return ldMenuChain;
-      }),
+// Make the mocked Cypress object globally available
+(globalThis as any).cy = cyMock;
 
-      contains: jest.fn((selector: string) => {
-        if (selector === "button") return ldButtonChain;
-        if (selector === "a.dropdown-item") return ldMenuChain;
-        return ldButtonChain;
-      }),
-
-      wait: jest.fn(),
-      log: jest.fn(),
-    };
-
-    (globalThis as any).cy = cyMock;
-
-    /* ---------- Global action data ---------- */
-
-    laMockActionData = [
-      {
-        doctype_to_be_tested: "Quotation",
-        name: "field_001",
-        owner: "test.user@example.com",
-        creation: new Date(),
-        modified: new Date(),
-        modified_by: "test.user@example.com",
-        docstatus: 0,
-        idx: 1,
-        pos: 10,
-        is_child: false,
-        child_name: "",
-        child_index: 0,
-        add_row: false,
-        field_name: "mock_field_1",
-        action: "Onload",
-        data_type: "",
-        allow_on_submit: false,
-        is_read_only: false,
-        is_mandatory: false,
-        is_hidden: false,
-        parent: "mock_test_case",
-        parentfield: "test_fields",
-        parenttype: "Test Case Configurator",
-        doctype: "Test Fields",
-        section: "",
-        tab: "",
-        row_index: 1 as const,
-        message_type: "",
-        message: "This customer is not yet registred in SAP",
-        value: "orange",
-        menus: "",
-      } as TactionData,
-    ];
-  });
-  describe("clActionFactory", () => {
-      const ldMockActionsData: TTactionsData = [
-    { pos: 10 } as TactionData,
-    { pos: 10.5 } as TactionData,
-    { pos: 20 } as TactionData,
-    { pos: 30 } as TactionData,
-  ];
-
-    //  createAction()
-
-    it("creates correct action instance for valid action type", () => {
-      const LdInstance = clActionFactory.createAction(
-        "On Intro Banner",
-        ldMockActionsData
-      );
-
-      expect(LdInstance).toBeInstanceOf(clActionBanner);
-    });
-
-    it("throws error for invalid action type", () => {
-      expect(() =>
-        clActionFactory.createAction("Invalid Action", ldMockActionsData)
-      ).toThrow("Invalid action type: Invalid Action");
-    });
-
-      // filterActionData()
-
-    it("filters actions within same pos bucket", () => {
-      const LdResult = clActionFactory.filterActionData(
-        ldMockActionsData,
-        { pos: 10 } as TactionData
-      );
-
-      expect(LdResult).toHaveLength(2);
-      expect(LdResult.map(r => r.pos)).toEqual([10, 10.5]);
-    });
-
-    it("excludes actions outside pos range", () => {
-      const LdResult = clActionFactory.filterActionData(
-        ldMockActionsData,
-        { pos: 20 } as TactionData
-      );
-
-      expect(LdResult.map(r => r.pos)).toEqual([20]);
-    });
-
-    it("returns empty array when no actions match", () => {
-      const LdResult = clActionFactory.filterActionData(
-        ldMockActionsData,
-        { pos: 100 } as TactionData
-      );
-
-      expect(LdResult).toEqual([]);
-    });
-
-      // executeAction()
-
-    it("creates correct test action instance for Create", () => {
-      const LdScript: TtestHeaderData = {
-        action: "Create",
-        doctype_to_be_tested: "Sales Order",
-      } as TtestHeaderData;
-
-      const LdInstance = clActionFactory.executeAction(LdScript);
-      expect(LdInstance).toBeInstanceOf(clActionCreation);
-    });
-
-    it("creates correct test action instance for Update", () => {
-      const LdScript: TtestHeaderData = {
-        action: "Update",
-        doctype_to_be_tested: "Sales Order",
-        document: "SO-0001",
-      } as TtestHeaderData;
-
-      const LdInstance = clActionFactory.executeAction(LdScript);
-      expect(LdInstance).toBeInstanceOf(clActionUpdate);
-    });
-
-    it("throws error for invalid test script action", () => {
-      const LdScript: TtestHeaderData = {
-        action: "Invalid Script Action",
-      } as TtestHeaderData;
-
-      expect(() =>
-        clActionFactory.executeAction(LdScript)
-      ).toThrow("Invalid Test Script action type: Invalid Script Action");
-    });
-
-      // Sanity / wiring check
-
-    it("passes correct arguments to action constructor", () => {
-      const LdInstance = clActionFactory.createAction(
-        "Onload",
-        ldMockActionsData
-      );
-
-      expect(LdInstance).toBeInstanceOf(clActionOnLoad);
-    });
+/* ---------- Action data setup ---------- */
+// This represents one row of action configuration
+// Example: show a banner message during test execution
+laMockActionData = [
+{
+doctype_to_be_tested: "Quotation",
+name: "field_001",
+owner: "test.user@example.com",
+creation: new Date(),
+modified: new Date(),
+modified_by: "test.user@example.com",
+docstatus: 0,
+idx: 1,
+pos: 10, // Position defines execution order
+is_child: false,
+child_name: "",
+child_index: 0,
+add_row: false,
+field_name: "mock_field_1",
+action: "Onload", // Action type
+data_type: "",
+allow_on_submit: false,
+is_read_only: false,
+is_mandatory: false,
+is_hidden: false,
+parent: "mock_test_case",
+parentfield: "test_fields",
+parenttype: "Test Case Configurator",
+doctype: "Test Fields",
+section: "",
+tab: "",
+row_index: 1 as const,
+message_type: "",
+message: "This customer is not yet registred in SAP",
+value: "orange", // Banner color
+menus: "",
+} as TactionData,
+];
 });
 
-    //  clActionBanner
+// clActionFactory tests
+describe("clActionFactory", () => {
+// Mock multiple action rows with different execution positions
+// These positions decide which actions run together and in what order
+const ldMockActionsData: TTactionsData = [
+{ pos: 10 } as TactionData,
+{ pos: 10.5 } as TactionData,
+{ pos: 20 } as TactionData,
+{ pos: 30 } as TactionData,
+];
 
-  describe("clActionBanner", () => {
-    let ldInstance: clActionBanner;
+/*createAction()
+Purpose:
+- Factory should return the correct Action class
+- Based only on the action name provided */
 
-    beforeEach(() => {
-      ldInstance = new clActionBanner("Banner", structuredClone(laMockActionData));
-    });
+it("creates correct action instance for valid action type", () => {
+// GIVEN: An action name that represents a banner shown on page intro
+// AND: A list of configured actions from test setup
+const LdInstance = clActionFactory.createAction(
+"On Intro Banner",
+ldMockActionsData
+);
 
-    it("selects the banner element", () => {
-      ldInstance.executeAction();
-      expect(cyMock.get).toHaveBeenCalledWith(
-        ".form-message.orange:visible"
-      );
-    });
+// THEN: Factory must decide that this is a Banner-related action
+// AND: Return the Banner action implementation
+expect(LdInstance).toBeInstanceOf(clActionBanner);
+});
 
-    it("validates banner message content", () => {
-      ldInstance.executeAction();
-      expect(ldBannerChain.should).toHaveBeenCalledWith(
-        "contain.text",
-        "This customer is not yet registred in SAP"
-      );
-    });
+it("throws error for invalid action type", () => {
+// GIVEN: An action name that the system does not support
+// WHEN: Factory is asked to create an action
+// THEN: It must fail fast with a clear error
+expect(() =>
+clActionFactory.createAction("Invalid Action", ldMockActionsData)
+).toThrow("Invalid action type: Invalid Action");
+});
 
-    it("waits with medium delay", () => {
-      ldInstance.executeAction();
-      expect(cyMock.wait).toHaveBeenCalledWith(500);
-      expect(fnGetDelay).toHaveBeenCalledWith("medium");
-    });
+/* filterActionData()
+Purpose:
+- Group actions that belong to the same execution bucket
+- Actions with pos 10 and 10.x must execute together */
 
-    it("throws error when banner message is missing", () => {
-      laMockActionData[0].message = "";
-      ldInstance = new clActionBanner("Banner", structuredClone(laMockActionData));
+it("filters actions within same pos bucket", () => {
+// GIVEN: Action rows with mixed execution positions
+// WHEN: We request actions for position 10
+const LdResult = clActionFactory.filterActionData(
+ldMockActionsData,
+{ pos: 10 } as TactionData
+);
 
-      expect(() => ldInstance.executeAction()).toThrow(
-        "Banner message is missing"
-      );
-    });
+// THEN: Actions at 10 and 10.5 should be grouped together
+expect(LdResult).toHaveLength(2);
+expect(LdResult.map(r => r.pos)).toEqual([10, 10.5]);
+});
 
-    it("uses only first action row", () => {
-      laMockActionData.push({
-        ...laMockActionData[0],
-        message: "Second message",
-        value: "red",
-      });
+it("excludes actions outside pos range", () => {
+// GIVEN: Action rows with multiple positions
+// WHEN: We request actions only for position 20
+const LdResult = clActionFactory.filterActionData(
+ldMockActionsData,
+{ pos: 20 } as TactionData
+);
 
-      ldInstance = new clActionBanner("Banner", structuredClone(laMockActionData));
-      ldInstance.executeAction();
+// THEN: Only actions exactly matching this bucket are returned
+expect(LdResult.map(r => r.pos)).toEqual([20]);
+});
 
-      expect(ldBannerChain.should).toHaveBeenCalledWith(
-        "contain.text",
-        "This customer is not yet registred in SAP"
-      );
-    });
-  });
+it("returns empty array when no actions match", () => {
+// GIVEN: No actions exist for this execution position
+// WHEN: Filter is applied
+const LdResult = clActionFactory.filterActionData(
+ldMockActionsData,
+{ pos: 100 } as TactionData
+);
 
-    //  clActionValidateGroupButtonOptions
+// THEN: Factory should safely return an empty list
+expect(LdResult).toEqual([]);
+});
 
-  describe("clActionValidateGroupButtonOptions", () => {
-    let ldInstance: clActionValidateGroupButtonOptions;
+/*executeAction()
+Purpose:
+- Decide which high-level test action to run
+- Based on test header configuration*/
 
-    beforeEach(() => {
-      laMockActionData[0].value = "Create";
-      laMockActionData[0].menus = "Single Variant, Multiple Variants";
+it("creates correct test action instance for Create", () => {
+// GIVEN: Test script header says user is creating a new document
+const LdScript: TtestHeaderData = {
+action: "Create",
+doctype_to_be_tested: "Sales Order",
+} as TtestHeaderData;
 
-      ldInstance = new clActionValidateGroupButtonOptions(
-        {} as any,
-        structuredClone(laMockActionData)
-      );
-    });
+// WHEN: Factory executes the test action
+const LdInstance = clActionFactory.executeAction(LdScript);
 
-    it("opens dropdown and validates menu options", () => {
-      ldInstance.executeAction();
+// THEN: Creation flow must be triggered
+expect(LdInstance).toBeInstanceOf(clActionCreation);
+});
 
-      expect(cyMock.contains).toHaveBeenCalledWith("button", "Create");
-      expect(ldButtonChain.should).toHaveBeenCalledWith("have.length", 1);
-      expect(ldButtonChain.click).toHaveBeenCalledWith({ force: true });
+it("creates correct test action instance for Update", () => {
+// GIVEN: Test script header says user is updating an existing document
+const LdScript: TtestHeaderData = {
+action: "Update",
+doctype_to_be_tested: "Sales Order",
+document: "SO-0001",
+} as TtestHeaderData;
 
-      expect(ldMenuChain.should).toHaveBeenCalledWith("exist");
-      expect(cyMock.get).toHaveBeenCalledWith("a.dropdown-item");
-    });
-    it('calls cy.wait before opening dropdown', () => {
-      ldInstance.executeAction();
-      expect(cyMock.wait).toHaveBeenCalled();
-    });
-  });
+// WHEN: Factory executes the test action
+const LdInstance = clActionFactory.executeAction(LdScript);
 
-    //  clActionClickInnerGroupButton
+// THEN: Update flow must be triggered
+expect(LdInstance).toBeInstanceOf(clActionUpdate);
+});
 
-  describe("clActionClickInnerGroupButton", () => {
-    let ldInstance: clActionClickInnerGroupButton;
+it("throws error for invalid test script action", () => {
+// GIVEN: Test script header contains an unsupported action
+const LdScript: TtestHeaderData = {
+action: "Invalid Script Action",
+} as TtestHeaderData;
 
-    beforeEach(() => {
-      laMockActionData[0].value = "Create";
-      laMockActionData[0].menus = "Sales Order";
-      laMockActionData[0].is_hidden = false;
-      laMockActionData[0].is_read_only = false;
+// THEN: System must reject it clearly
+expect(() =>
+clActionFactory.executeAction(LdScript)
+).toThrow("Invalid Test Script action type: Invalid Script Action");
+});
 
-      ldInstance = new clActionClickInnerGroupButton(
-        {} as any,
-        structuredClone(laMockActionData)
-      );
-    });
+it("passes correct arguments to action constructor", () => {
+// GIVEN: A basic Onload action configuration
+// WHEN: Factory creates the action
+const LdInstance = clActionFactory.createAction(
+"Onload",
+ldMockActionsData
+);
 
-    it("clicks button and selects menu item", () => {
-      ldInstance.executeAction();
+// THEN: The correct Onload action implementation must be used
+expect(LdInstance).toBeInstanceOf(clActionOnLoad);
+});
+});
 
-      expect(cyMock.contains).toHaveBeenCalledWith("button", "Create");
-      expect(ldButtonChain.click).toHaveBeenCalled();
-      expect(cyMock.log).toHaveBeenCalledWith("Sales Order");
-      expect(ldMenuChain.click).toHaveBeenCalledWith({ force: true });
-    });
+describe("clActionBanner", () => {
+// Holds the Banner action instance under test
+let ldInstance: clActionBanner;
 
-    it("does not click when button is hidden", () => {
-      laMockActionData[0].is_hidden = true;
-      ldInstance = new clActionClickInnerGroupButton(
-        {} as any,
-        structuredClone(laMockActionData)
-      );
+beforeEach(() => {
+// Create a fresh Banner action before every test
+// structuredClone ensures test data is not mutated across tests
+ldInstance = new clActionBanner(
+"Banner",
+structuredClone(laMockActionData)
+);
+});
 
-      ldInstance.executeAction();
-      expect(ldButtonChain.click).not.toHaveBeenCalled();
-    });
+it("selects the banner element", () => {
+// WHEN: Banner action is executed
+ldInstance.executeAction();
 
-    it("does not click when button is read-only", () => {
-      laMockActionData[0].is_read_only = true;
-      ldInstance = new clActionClickInnerGroupButton(
-        {} as any,
-        structuredClone(laMockActionData)
-      );
+// THEN: System must locate the visible banner element
+// AND: Banner color should be applied via CSS class (orange)
+expect(cyMock.get).toHaveBeenCalledWith(
+".form-message.orange:visible"
+);
+});
 
-      ldInstance.executeAction();
-      expect(ldButtonChain.click).not.toHaveBeenCalled();
-    });
-  });
+it("validates banner message content", () => {
+// WHEN: Banner action runs
+ldInstance.executeAction();
+
+// THEN: Banner must display the configured message text
+// This ensures the user sees the correct validation or warning message
+expect(cyChain.should).toHaveBeenCalledWith(
+"contain.text",
+"This customer is not yet registred in SAP"
+);
+});
+
+it("waits with medium delay", () => {
+// WHEN: Banner is shown
+ldInstance.executeAction();
+
+// THEN: Execution should pause to allow user to read the banner
+// Delay duration is controlled centrally via fnGetDelay
+expect(fnGetDelay).toHaveBeenCalledWith("medium");
+expect(cyMock.wait).toHaveBeenCalledWith(500);
+});
+
+it("throws error when banner message is missing", () => {
+// GIVEN: Banner configuration exists but message is empty
+// This is an invalid test setup
+laMockActionData[0].message = "";
+
+ldInstance = new clActionBanner(
+"Banner",
+structuredClone(laMockActionData)
+);
+
+// THEN: Action must fail fast with a clear error
+// This prevents silent UI failures
+expect(() => ldInstance.executeAction()).toThrow(
+"Banner message is missing"
+);
+});
+
+it("uses only first action row", () => {
+// GIVEN: Multiple banner configurations exist
+// This can happen due to incorrect test data setup
+laMockActionData.push({
+...laMockActionData[0],
+message: "Second message",
+value: "red",
+});
+
+ldInstance = new clActionBanner(
+"Banner",
+structuredClone(laMockActionData)
+);
+
+// WHEN: Banner action executes
+ldInstance.executeAction();
+
+// THEN: Only the first banner configuration should be applied
+// This ensures deterministic behavior and avoids UI conflicts
+expect(cyChain.should).toHaveBeenCalledWith(
+"contain.text",
+"This customer is not yet registred in SAP"
+);
+});
+});
+
+// clActionValidateGroupButtonOptions-This test suite verifies behaviour of a grouped button
+// where clicking a primary button opens a dropdown with menu options.
+describe("clActionValidateGroupButtonOptions", () => {
+let ldInstance: clActionValidateGroupButtonOptions;
+
+beforeEach(() => {
+// Mock action data setup
+// value → button label
+// menus → expected dropdown menu items
+laMockActionData[0].value = "Create";
+laMockActionData[0].menus = "Single Variant, Multiple Variants";
+
+// Create instance with mocked action data
+// First argument is unused context, so mocked as empty object
+ldInstance = new clActionValidateGroupButtonOptions(
+{} as any,
+structuredClone(laMockActionData)
+);
+});
+
+it("opens dropdown and validates menu options", () => {
+// Execute the action under test
+ldInstance.executeAction();
+
+// Verify that Cypress searches for a button with label "Create"
+expect(cyMock.contains).toHaveBeenCalledWith("button", "Create");
+
+// Ensure exactly one matching button exists
+expect(cyChain.should).toHaveBeenCalledWith("have.length", 1);
+
+// Verify forced click on the button to open dropdown
+expect(cyChain.click).toHaveBeenCalledWith({ force: true });
+
+// Validate that dropdown menu exists after click
+expect(cyChain.should).toHaveBeenCalledWith("exist");
+
+// Ensure dropdown items are queried
+expect(cyMock.get).toHaveBeenCalledWith("a.dropdown-item");
+});
+
+it("calls cy.wait before opening dropdown", () => {
+// Execute action
+ldInstance.executeAction();
+
+// Ensure a wait is added to allow UI to stabilize
+expect(cyMock.wait).toHaveBeenCalled();
+});
+});
+
+// clActionClickInnerGroupButton-This suite validates clicking a grouped button
+// and selecting an inner dropdown menu option.
+describe("clActionClickInnerGroupButton", () => {
+let ldInstance: clActionClickInnerGroupButton;
+
+beforeEach(() => {
+// Mock button configuration
+laMockActionData[0].value = "Create"; // Button label
+laMockActionData[0].menus = "Sales Order"; // Inner menu item
+laMockActionData[0].is_hidden = false; // Button visible
+laMockActionData[0].is_read_only = false; // Button enabled
+
+// Instantiate action with mocked data
+ldInstance = new clActionClickInnerGroupButton(
+{} as any,
+structuredClone(laMockActionData)
+);
+});
+
+it("clicks button and selects menu item", () => {
+// Execute action logic
+ldInstance.executeAction();
+
+// Verify Cypress locates the correct group button
+expect(cyMock.contains).toHaveBeenCalledWith("button", "Create");
+
+// Ensure button click is triggered
+expect(cyChain.click).toHaveBeenCalled();
+
+// Log the selected menu item for debugging / traceability
+expect(cyMock.log).toHaveBeenCalledWith("Sales Order");
+
+// Force click on inner dropdown menu item
+expect(cyChain.click).toHaveBeenCalledWith({ force: true });
+});
+
+it("does not click when button is hidden", () => {
+// Simulate hidden button scenario
+laMockActionData[0].is_hidden = true;
+
+ldInstance = new clActionClickInnerGroupButton(
+{} as any,
+structuredClone(laMockActionData)
+);
+
+// Execute action
+ldInstance.executeAction();
+
+// Ensure no click occurs when button is hidden
+expect(cyChain.click).not.toHaveBeenCalled();
+});
+
+it("does not click when button is read-only", () => {
+// Simulate read-only button scenario
+laMockActionData[0].is_read_only = true;
+
+ldInstance = new clActionClickInnerGroupButton(
+{} as any,
+structuredClone(laMockActionData)
+);
+
+// Execute action
+ldInstance.executeAction();
+
+// Ensure no click occurs when button is disabled
+expect(cyChain.click).not.toHaveBeenCalled();
+});
+});
+
 });
