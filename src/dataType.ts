@@ -354,6 +354,39 @@ class clDataTypeDatetime extends clDataTypeData {
     }
 }
 
+/** @class clDataTypeTextEditor - Handles Quill Text Editor fields. */
+class clDataTypeTextEditor extends clDataType {
+
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = ` .form-group > .ql-container > .ql-editor`;
+    }
+
+    input(): void {
+        const { value } = this.action.actionRow;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .scrollIntoView()
+            .click({ force: true })
+            .type('{ctrl}a', { force: true })
+            .type('{backspace}', { force: true })
+            .type(value, { force: true })
+            .blur({ force: true });
+    }
+
+    validate(): void {
+        if (this.action.actionRow.is_hidden) return;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .invoke('text')
+            .should('eq', this.action.actionRow.value);
+    }
+}
+
 
 /**
  * 
@@ -371,7 +404,8 @@ export class clDataTypeFactory {
         "Currency": clDataTypeCurrency,
         "Check": clDataTypecheck,
         "HTML": clDataTypeHTML,
-        "Datetime": clDataTypeDatetime
+        "Datetime": clDataTypeDatetime,
+        "Text Editor": clDataTypeTextEditor
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];

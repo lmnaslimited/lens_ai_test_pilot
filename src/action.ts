@@ -317,6 +317,29 @@ class clActionOnValidate extends clAction {
         super(iAction, iaActionData);
     }
 }
+/** 
+ * @class clActionBreadcrumb
+ * Validates breadcrumb navigation in ERPNext forms
+ */
+class clActionBreadcrumb extends clAction {
+
+    constructor(iAction: string, iaActionData: TTactionsData) {
+        super(iAction, iaActionData);
+    }
+
+    executeAction(): void {
+
+        this.actionRow = this.actionData[0];
+        const LIdValue: string = this.actionRow.value;
+        cy.wait(fnGetDelay("medium"));
+
+        // Validate expected breadcrumb value inside container
+        cy.contains('#navbar-breadcrumbs', LIdValue, { timeout: 4000 })
+        .should('be.visible');
+    }
+}
+
+
 
 /** @class clActionFactory - Factory for creating action instances */
 export class clActionFactory {
@@ -337,6 +360,7 @@ export class clActionFactory {
             "Click Button": clActionClickButton,
             "Action Menu": clActionActionMenu,
             "On Validate": clActionOnValidate,
+            "Validate BreadCrumb": clActionBreadcrumb
         };
     static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
