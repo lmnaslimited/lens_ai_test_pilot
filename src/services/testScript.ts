@@ -11,12 +11,12 @@ export abstract class clTestRunnerService implements ifTestRunner {
 
   // Constructor initializes shared dependencies required by all runners
   constructor(
-    protected ldContext: ifTestContext, // Holds runtime execution state (logs, errors, script reference)
+    protected ldContext: ifTestContext,  // Holds runtime execution state (logs, errors, script reference)
     protected ldReport: clReportService, // Service responsible for posting and updating run logs
-    protected ldTestLabData: any, // Cached Test Lab configuration used for script mapping
-    protected lTargetUrl: string,
-    protected ldAuth: clAuthService,
-    protected ldLoginData: any
+    protected ldTestLabData: any,        // Cached Test Lab configuration used for script mapping
+    protected lTargetUrl: string,        // Base backend URL for execution
+    protected ldAuth: clAuthService,     // Authentication service for login/logout
+    protected ldLoginData: any           // Script-wise login credential mapping
   ) {}
 
   // Abstract method enforcing subclasses (UI/API) to implement execution logic
@@ -61,13 +61,13 @@ export abstract class clTestRunnerService implements ifTestRunner {
     // Transform captured error logs into standardized error objects
     // Merge both informational and error logs into a single array
     return [
-      ...this.ldContext.capturedLogs.map((msg) => ({
+      ...this.ldContext.capturedLogs.map((iMessage) => ({
         type: "Log",  // Mark entry as informational log
-        message: msg, // Store original log message
+        message: iMessage, // Store original log message
       })),
-      ...this.ldContext.capturedErrors.map((msg) => ({
+      ...this.ldContext.capturedErrors.map((iMessage) => ({
         type: "Error", // Mark entry as error log
-        message: msg,  // Store original error message
+        message: iMessage,  // Store original error message
       })),
     ];
   }
@@ -161,12 +161,12 @@ export class clTestRunnerUiService extends clTestRunnerService {
   // Constructor injects UI-specific dependencies along with shared base dependencies
   constructor(
     ldContext: ifTestContext,                // Runtime execution context
-    ldAuth: clAuthService,           // Authentication service for login/logout
+    ldAuth: clAuthService,                   // Authentication service for login/logout
     ldReport: clReportService,               // Reporting service
-    lTargetUrl: string,     // Base application URL
+    lTargetUrl: string,                      // Base application URL
     ldTestLabData: any,                      // Test Lab configuration data
     private readonly ldMestMasterData: any,  // Master data for UI execution
-    ldLoginData: any        // Script-wise login credential mapping
+    ldLoginData: any                         // Script-wise login credential mapping
   ) {
     super(ldContext, ldReport, ldTestLabData, lTargetUrl, ldAuth, ldLoginData); // Call base constructor
   }
@@ -227,7 +227,7 @@ export class clTestRunnerUiService extends clTestRunnerService {
 
     // Locate stored document based on configured index
     const LdStoredDoc = this.ldContext.storeDocname.find(
-      (x) => Number(x.idx) === Number(LdTestLabRow.use_docname)
+      (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
     );
 
     // Inject document name into script if found
@@ -279,14 +279,14 @@ export class clTestRunnerUiService extends clTestRunnerService {
     if (idScript.connection !== "Create" || !idScript.connection_doctype) return;
 
     // Execute connection handler to create document
-    clConnectionFactory.connection(idScript).handleConnection().then((docname) => {
+    clConnectionFactory.connection(idScript).handleConnection().then((iDocname) => {
       // Ensure returned value is a valid document name
-      if (typeof docname !== "string") return;
+      if (typeof iDocname !== "string") return;
       // Store created document name for reuse in later scripts
-      this.ldContext.createdDocnames.push(docname);
+      this.ldContext.createdDocnames.push(iDocname);
       // Store created document mapped by script index
       this.ldContext.createdDocsByIndex.push({
-        [idScript.idx]: docname,
+        [idScript.idx]: iDocname,
       });
     });
   }
@@ -299,9 +299,9 @@ export class clTestRunnerUiService extends clTestRunnerService {
     if (!LdTestLabRow) return;
 
     // Read current browser URL after execution
-    cy.url().then((url: string) => {
+    cy.url().then((iUrl: string) => {
       // Extract document identifier from URL path
-      const docname = this.extractDocnameFromUrl(url);
+      const docname = this.extractDocnameFromUrl(iUrl);
       // Skip if extraction failed
       if (!docname) return;
 
@@ -314,9 +314,9 @@ export class clTestRunnerUiService extends clTestRunnerService {
   }
 
   // Extract last path segment from URL as document name
-  private extractDocnameFromUrl(url: string): string | undefined {
+  private extractDocnameFromUrl(iUrl: string): string | undefined {
     // Split URL into segments
-    const LParts = url.split("/");
+    const LParts = iUrl.split("/");
     // Return last non-empty segment
     return LParts.pop() || LParts.pop();
   }
@@ -330,9 +330,9 @@ export class clTestRunnerApiService extends clTestRunnerService {
   // Constructor injects API-specific dependencies along with shared base services
   constructor(
     ldContext: ifTestContext,             // Runtime execution context (logs, state, script ref)
-    lTargetUrl: string,  // Base backend URL for API execution
-    ldLoginData: any,    // Script-wise credential mapping
-    ldAuth: clAuthService,
+    lTargetUrl: string,                   // Base backend URL for API execution
+    ldLoginData: any,                     // Script-wise credential mapping
+    ldAuth: clAuthService,                // Authentication service for login/logout
     ldTestLabData: any,                   // Test Lab configuration data
     ldReport: clReportService             // Reporting service for run logs
   ) {
@@ -355,13 +355,13 @@ export class clTestRunnerApiService extends clTestRunnerService {
     // Delegate execution to API builder factory
     ApiBuilderFactory.execute({
       ldAuth: this.ldAuth,
-      targetUrl: this.lTargetUrl, // Backend base URL
-      script: idScript,           // Script configuration
-      auth: {
-        user: LdCreds.email,      // Username for authentication
-        pass: LdCreds.password,   // Password for authentication
+      lTargetUrl: this.lTargetUrl, // Backend base URL
+      ldScript: idScript,           // Script configuration
+      ldAuthendication: {
+        lUser: LdCreds.email,      // Username for authentication
+        lPassword: LdCreds.password,   // Password for authentication
       },
-      context: this.ldContext,    // Shared execution context
+      ldContext: this.ldContext,    // Shared execution context
     });
   }
 }
@@ -372,65 +372,65 @@ class ApiBuilderFactory {
   // Entry method to execute API flow
   static execute({
     ldAuth,
-    targetUrl,
-    script,
-    auth,
-    context,
+    lTargetUrl,
+    ldScript,
+    ldAuthendication,
+    ldContext,
   }: {
     ldAuth: clAuthService;
-    targetUrl: string;
-    script: any;
-    auth: { user: string; pass: string };
-    context: ifTestContext;
+    lTargetUrl: string;
+    ldScript: any;
+    ldAuthendication: { lUser: string; lPassword: string };
+    ldContext: ifTestContext;
   }) {
 
     // Perform login before executing actual API
-    ldAuth.login(auth.user, auth.pass).then(() => {
+    ldAuth.login(ldAuthendication.lUser, ldAuthendication.lPassword).then(() => {
 
       // Dynamically construct request URL
-      const url = this.buildUrl(targetUrl, script);
+      const url = this.buildUrl(lTargetUrl, ldScript);
       // Build request payload if applicable
-      const payload = this.buildPayload(script);
+      const LdPayload = this.buildPayload(ldScript);
 
       // Prepare Cypress request configuration
-      const requestOptions: Partial<Cypress.RequestOptions> = {
-        method: script.action,    // HTTP method (GET, POST, PUT, DELETE)
-        url,                      // Fully constructed endpoint
-        failOnStatusCode: false,  // Allow manual status validation
+      const LdRequestOptions: Partial<Cypress.RequestOptions> = {
+        method: ldScript.action,    // HTTP method (GET, POST, PUT, DELETE)
+        url,                        // Fully constructed endpoint
+        failOnStatusCode: false,    // Allow manual status validation
       };
 
       // Attach body only for non-GET requests
-      if (script.action !== "GET" && payload) {
-        requestOptions.body = payload;
+      if (ldScript.action !== "GET" && LdPayload) {
+        LdRequestOptions.body = LdPayload;
       }
 
       // Execute API request
-      cy.request(requestOptions as Cypress.RequestOptions)
-        .then((resp: Cypress.Response<any>) => {
+      cy.request(LdRequestOptions as Cypress.RequestOptions)
+        .then((idResponse: Cypress.Response<any>) => {
 
           // Validate response after execution
-          this.validateResponse(script, resp, payload, context);
+          this.validateResponse(ldScript, idResponse, LdPayload, ldContext);
         });
     });
   }
 
   // Construct API endpoint dynamically based on script configuration
-  private static buildUrl(targetUrl: string, script: any): string {
+  private static buildUrl(iTargetUrl: string, idScript: any): string {
     // Start with base URL and API prefix
-    const laParts: string[] = [targetUrl, "api", script.api_type];
+    const laParts: string[] = [iTargetUrl, "api", idScript.api_type];
 
     // Append doctype for resource APIs
-    if (script.api_type !== "method") {
-      laParts.push(script.doctype_to_be_tested);
+    if (idScript.api_type !== "method") {
+      laParts.push(idScript.doctype_to_be_tested);
     }
 
     // Append document name if provided
-    if (script.document) {
-      laParts.push(script.document);
+    if (idScript.document) {
+      laParts.push(idScript.document);
     }
 
     // Join URL parts and append query parameters if present
-    return `${laParts.join("/")}${this.buildParams(script.params)}`;
+    return `${laParts.join("/")}${this.buildParams(idScript.params)}`;
   }
 
   // Normalize query parameters by ensuring proper prefix
@@ -455,41 +455,41 @@ class ApiBuilderFactory {
 
   // Validate API response and update execution context
   private static validateResponse(
-    script: any,
-    resp: Cypress.Response<any>,
-    payload: any,
-    context: ifTestContext
+    idScript: any,
+    idResponse: Cypress.Response<any>,
+    idPayload: any,
+    idContext: ifTestContext
   ) {
 
     // Fail execution if HTTP status indicates error
-    if (resp.status >= 400) {
+    if (idResponse.status >= 400) {
       // Prepare failure message
-      const msg = `API ${script.action} failed for ${script.name}`;
+      const LFailureMessage = `API ${idScript.action} failed for ${idScript.name}`;
       // Log failure in Cypress UI
-      cy.log(msg);
+      cy.log(LFailureMessage);
       // Mark test context as failed
-      context.isTestPassed = false;
+      idContext.isTestPassed = false;
       // Store error in context for reporting
-      context.capturedErrors.push(msg);
+      idContext.capturedErrors.push(LFailureMessage);
       // Throw error to stop execution
-      throw new Error(msg);
+      throw new Error(LFailureMessage);
     }
 
     // Determine validation target based on API type
-    const actualRow =
-      script.api_type === "resource"
-        ? resp.body.data?.[0]  // Resource APIs return data array
-        : resp.body.message;   // Method APIs return message object
+    const LdActualRow =
+    idScript.api_type === "resource"
+        ? idResponse.body.data?.[0]  // Resource APIs return data array
+        : idResponse.body.message;   // Method APIs return message object
 
         // Perform field-level validation for GET requests
-    if (script.action === "GET" && payload && actualRow) {
+    if (idScript.action === "GET" && idPayload && LdActualRow) {
       // Compare each expected field against actual response
-      Object.entries(payload).forEach(([key, expected]) => {
-        expect(actualRow[key]).to.deep.equal(expected);
+      Object.entries(idPayload).forEach(([iKey, iExpected]) => {
+        expect(LdActualRow[iKey]).to.deep.equal(iExpected);
       });
     }
     // Log success message in Cypress UI
-    cy.log(`API ${script.action} passed for ${script.name}`);
+    cy.log(`API ${idScript.action} passed for ${idScript.name}`);
   }
 }
 
