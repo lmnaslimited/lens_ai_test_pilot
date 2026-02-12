@@ -321,6 +321,70 @@ export class clActionBanner extends clAction {
     }
 }
 
+/** @class clActionAttachments Validate attachment count and attachment name(s). 
+ * in the document
+*/
+export class clActionAttachments extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LaAttachmentNames = this.actionRow.message
+            ?.split(', ')
+            .map(name => name.trim())
+            .filter(Boolean);
+
+        if (!LaAttachmentNames || LaAttachmentNames.length === 0) {
+            throw new Error("Attachment name(s) are missing");
+        }
+
+        // Validate attachment count
+        cy.get('ul.form-attachments li.attachment-row')
+            .should('have.length', LaAttachmentNames.length);
+
+        // Validate attachment name(s)
+        LaAttachmentNames.forEach(iFileName => {
+            cy.contains(
+                'ul.form-attachments li.attachment-row',
+                iFileName
+            ).should('be.visible');
+        });
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+
+/** 
+ * @class clActionAssignments 
+ * Validate assigned user count and assigned user name(s)
+ * in the document.
+ */
+export class clActionAssignments extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LaAssignedUsers = this.actionRow.message
+            ?.split(', ')
+            .map(user => user.trim())
+            .filter(Boolean);
+
+        if (!LaAssignedUsers || LaAssignedUsers.length === 0) {
+            throw new Error("Assigned user name(s) are missing");
+        }
+
+        // Validate assignment count
+        cy.get('ul.form-assignments .assignments .avatar')
+            .should('have.length', LaAssignedUsers.length);
+
+        // Validate assigned user names
+        LaAssignedUsers.forEach(iUserName => {
+            cy.get('ul.form-assignments .assignments .avatar')
+                .filter(`[title="${iUserName}"]`)
+                .should('be.visible');
+        });
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
 
 /** @class clActionOnValidate validate the error message*/
 export class clActionOnValidate extends clAction {
@@ -479,7 +543,9 @@ export class clActionFactory {
             "On Validate": clActionOnValidate,
             "Click Group Button": clActionClickInnerGroupButton,
             "Validate Group Button Options":clActionValidateGroupButtonOptions,
-            "On Intro Banner": clActionBanner
+            "On Intro Banner": clActionBanner,
+            "Validate Attachment": clActionAttachments,
+            "Validate Assignee": clActionAssignments
         };
 
     /** Action mentioned in the Test Script Header fields */

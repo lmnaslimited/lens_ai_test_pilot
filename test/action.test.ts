@@ -7,6 +7,8 @@ clActionValidateGroupButtonOptions, // Action that checks dropdown menu options
 clActionClickInnerGroupButton, // Action that clicks a menu item inside a button
 clActionCreation, // Action used when creating a document
 clActionUpdate, // Action used when updating a document
+clActionAssignments, 
+clActionAttachments,
 } from "../src/action";
 
 // Import delay helper (used to simulate waiting in UI)
@@ -57,6 +59,7 @@ should: jest.fn(() => cyChain),
 click: jest.fn(() => cyChain),
 last: jest.fn(() => cyChain),
 contains: jest.fn(() => cyChain),
+filter: jest.fn(() => cyChain),
 };
 
 cyMock = {
@@ -455,4 +458,152 @@ expect(cyChain.click).not.toHaveBeenCalled();
 });
 });
 
+  describe("clActionAssignments", () => {
+    let ldInstance: clActionAssignments;
+    beforeEach(() => {
+      // Arrange
+      // GIVEN: Action data contains assignment configuration
+      laMockActionData[0].action = "Validate Assignee";
+      laMockActionData[0].message = "finance.user@example.com";
+      // Create a fresh Banner action before every test
+      // structuredClone ensures test data is not mutated across tests
+       
+      ldInstance = new clActionAssignments(
+        "Validate Assignee",
+        structuredClone(laMockActionData)
+      );
+
+    });
+    it("Should call the Assignment action class when action is Validate Assignee", () =>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Validate Assignee", laMockActionData)).toBeInstanceOf(clActionAssignments)
+    })
+    it("Should not call the Assignment action class when action is not Validate Assignee", ()=>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Onload", laMockActionData)).not.toBeInstanceOf(clActionAssignments)
+    })
+    it("Should valid number of assignee", () => {
+      // Act
+      ldInstance.executeAction();
+
+      // Assert
+      expect(cyChain.should).toHaveBeenCalledWith("have.length",1);
+    });
+  
+    it("Should have expected Assignee fullname", () => {
+      // Act
+      ldInstance.executeAction();
+
+      // Assert
+      expect(cyChain.filter).toHaveBeenCalledWith(`[title="finance.user@example.com"]`);
+    })
+    it("Document should have assignee", () => {
+      // Act
+      ldInstance.executeAction();
+
+      // Assert
+      expect(cyChain.should).toHaveBeenCalledWith("be.visible");
+    })
+
+    it("should throw error when no assignee is configured", () => {
+        // Arrange: Assignment rule exists but no user defined
+        laMockActionData[0].action = "Validate Assignee";
+        laMockActionData[0].message = ""    
+        
+        // Act
+        ldInstance = new clActionAssignments(
+          "Validate Assignee",
+          structuredClone(laMockActionData)
+        );
+        //  Assert
+        expect(() => ldInstance.executeAction()).toThrow(
+          "Assigned user name(s) are missing"
+        );
+    });
+  });
+
+  describe("clActionAttachments - Exact Attachment Validation", () => {
+
+    let ldInstance: clActionAttachments;
+    
+    beforeEach(() => {
+      laMockActionData[0].action = "Validate Attachment";
+      laMockActionData[0].message =
+        "Technical Datasheet_en.pdf, Technical Datasheet_fr.pdf, Technical Datasheet_de.pdf, invoice_pdf.pdf";
+    
+      ldInstance = new clActionAttachments (
+        "validateattachment",
+        structuredClone(laMockActionData)
+      );
+    });
+
+    it("Should call Attachment action class when action is Validate Attachment", () => {
+      expect(clActionFactory.createAction("Validate Attachment", laMockActionData)).toBeInstanceOf(clActionAttachments)
+    })
+    it("Should call the Attachment action class when action is Validate Attachment", () =>{
+      // Act + Assert
+      expect(clActionFactory.createAction("Onload", laMockActionData)).not.toBeInstanceOf(clActionAttachments)
+    })
+    it("should have expected no. of attachment in the document", () => {
+      ldInstance.executeAction();
+    
+      expect(cyChain.should).toHaveBeenCalledWith(
+        "have.length", 4
+      );
+    });
+
+    it("should throw error if no attachment file names are configured", ()=>{
+      // Arrange
+      laMockActionData[0].message = ""
+      // Act
+      ldInstance = new clActionAttachments(
+        "Validate Assignee",
+        structuredClone(laMockActionData)
+      );
+      // Assert
+      expect(()=>ldInstance.executeAction()).toThrow("Attachment name(s) are missing")
+    })
+
+    it("should have expected filename", () => {
+      // Arrange
+      // Expected attachment names
+      const LaExpectedFiles = [
+        "Technical Datasheet_en.pdf",
+        "Technical Datasheet_fr.pdf",
+        "Technical Datasheet_de.pdf",
+        "invoice_pdf.pdf"
+      ];
+
+      // Act
+      ldInstance.executeAction()
+
+      // Assert
+      LaExpectedFiles.forEach(iFile => {
+        expect(cyMock.contains).toHaveBeenCalledWith(
+          'ul.form-attachments li.attachment-row',
+          iFile
+        )
+      })
+      
+      expect(cyMock.contains).toHaveBeenCalledTimes(4)
+    });
+
+    it("Attachment should be visible", () => {
+      // Act
+      ldInstance.executeAction()
+      // Assert
+      expect(cyChain.should).toHaveBeenCalledWith(
+        "be.visible"
+      )
+    });
+     
+    // it("should wait before validating attachments", () => {
+    //   ldInstance.executeAction();
+    
+    //   expect(fnGetDelay).toHaveBeenCalled();
+    //   expect(cyMock.wait).toHaveBeenCalledWith(500);
+    // });
+    
+  });
+    
 });
