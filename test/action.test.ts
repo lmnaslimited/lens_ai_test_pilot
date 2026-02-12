@@ -458,7 +458,7 @@ Purpose:
         // Arrange
       // Test Action Data row for Bread Crumbs
       laMockActionData[0].action = "Validate BreadCrumb"
-      laMockActionData[0].value = "Quo-001"
+      laMockActionData[0].value = "DTTHZ2N20260004"
 
       ldBreadInstance = new clActionBreadcrumbs(
         "Validate Breadcrumbs",
@@ -468,7 +468,7 @@ Purpose:
     it("Should call Breadcrumbs action class when action is Validate Breadcrumbs",()=>{
         // Act
       const ldAction = clActionFactory.createAction(
-        "Validate BreadCrumb", laMockActionData
+        "Validate Breadcrumbs", laMockActionData
       )
       // Assert
       // Expect the created action to be 
@@ -486,24 +486,18 @@ Purpose:
         expect(ldAction).not.toBeInstanceOf(clActionBreadcrumbs)
       })
 
-    it("Should locate the document id in braedcrumbs",() => {
-      ldBreadInstance.executeAction()
-      // Expect breadcrumb selector to 
-      // target the last document ID link
-      expect(cyMock.get).toHaveBeenCalledWith('#navbar-breadcrumbs li:last-child a')
-    })
+    it("Should locate the document id in breadcrumbs", () => {
+      ldBreadInstance.executeAction();
+      expect(cyMock.contains).toHaveBeenCalledWith(
+        '#navbar-breadcrumbs',
+        'DTTHZ2N20260004',
+      );
+    });
 
-    it("Should hav expected document id", () => {
-        // Act
-        ldBreadInstance.executeAction()
-
-      // Assert
-      // Expect the breadcrumb text to 
-      // contain the expected document ID
-      expect(cyChain.should).toHaveBeenCalledWith(
-        "contain.text",
-        "Quo-001")
-    })
+    it("Should breadcrumb is visible", () => {
+      ldBreadInstance.executeAction();
+      expect(cyChain.should).toHaveBeenCalledWith('be.visible');
+    });
 
     it("Should throw an error if no value was configured for breadcrumbs", ()=>{
         // arrange

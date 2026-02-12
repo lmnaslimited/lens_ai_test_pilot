@@ -337,7 +337,7 @@ export class clActionBreadcrumbs extends clAction {
         cy.wait(fnGetDelay("medium"));
 
         // Validate expected breadcrumb value inside container
-        cy.contains('#navbar-breadcrumbs', LIdValue, { timeout: 4000 })
+        cy.contains('#navbar-breadcrumbs', LIdValue)
         .should('be.visible');
     }
 }
@@ -500,7 +500,7 @@ export class clActionFactory {
             "Click Group Button": clActionClickInnerGroupButton,
             "Validate Group Button Options":clActionValidateGroupButtonOptions,
             "On Intro Banner": clActionBanner,
-            "Validate BreadCrumb": clActionBreadcrumbs
+            "Validate Breadcrumbs": clActionBreadcrumbs
         };
 
     /** Action mentioned in the Test Script Header fields */
