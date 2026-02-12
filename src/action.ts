@@ -385,6 +385,26 @@ export class clActionAssignments extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
+// Validates breadcrumb navigation in forms
+export class clActionBreadcrumbs extends clAction {
+
+    constructor(iAction: string, iaActionData: TTactionsData) {
+        super(iAction, iaActionData);
+    }
+    executeAction(): void {
+
+        this.actionRow = this.actionData[0];
+        const LIdValue: string = this.actionRow.value;
+        if(!LIdValue) {
+            throw new Error('No value was configured for Breadcrumbs')
+        }
+        cy.wait(fnGetDelay("medium"));
+
+        // Validate expected breadcrumb value inside container
+        cy.contains('#navbar-breadcrumbs', LIdValue)
+        .should('be.visible');
+    }
+}
 
 /** @class clActionOnValidate validate the error message*/
 export class clActionOnValidate extends clAction {
@@ -545,7 +565,8 @@ export class clActionFactory {
             "Validate Group Button Options":clActionValidateGroupButtonOptions,
             "On Intro Banner": clActionBanner,
             "Validate Attachment": clActionAttachments,
-            "Validate Assignee": clActionAssignments
+            "Validate Assignee": clActionAssignments,
+            "Validate Breadcrumbs": clActionBreadcrumbs
         };
 
     /** Action mentioned in the Test Script Header fields */
