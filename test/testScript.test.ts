@@ -523,20 +523,27 @@ describe("Test Script Module", () => {
             body,
         });
     
+        const mockChain = (response?: any) => ({
+            then: (cb: any) => cb(response),
+        });
+        
         beforeEach(() => {
-            // Create fresh mocked dependencies before every test
-            ldAuth = LdCreateAuthMock();
+
+            ldAuth = {
+                login: jest.fn().mockReturnValue(mockChain()),
+                logout: jest.fn(),
+            } as any;
+            
+        
             ldReport = LdCreateReportMock();
-    
-            // Mock login credentials configuration
+        
             ldLoginData = {
                 ApiScript1: {
                     email: "api@test.com",
                     password: "secret",
                 },
             };
-    
-            // Create new instance of service under test
+        
             ldService = new clTestRunnerApiService(
                 ldContext,
                 LTargetUrl,
@@ -545,22 +552,19 @@ describe("Test Script Module", () => {
                 {},
                 ldReport
             );
-    
-            // Ensure login resolves immediately (simulate successful authentication)
-            (ldAuth.login as jest.Mock).mockImplementation(() => Promise.resolve());
-    
-            // Mock Cypress request to simulate successful HTTP 200 API response
+        
             (cy.request as jest.Mock).mockImplementation(() => ({
                 then: (cb: any) =>
-                    cb(
-                        LdMockResponse(200, {
+                    cb({
+                        status: 200,
+                        body: {
                             data: [{ name: "TEST-001" }],
                             message: { name: "TEST-001" },
-                        })
-                    ),
+                        },
+                    }),
             }));
         });
-    
+        
         // ----------------------------
         // SUCCESS FLOW - RESOURCE API
         // ----------------------------
@@ -722,11 +726,6 @@ describe("Test Script Module", () => {
                 action: "GET",
                 api_type: "resource",
                 doctype_to_be_tested: "Invoice",
-                actual_test_data: [
-                    {
-                        description: JSON.stringify({ amount: 100 }),
-                    },
-                ],
             };
     
             ldService.executeScript(LdScript as any);
@@ -752,11 +751,6 @@ describe("Test Script Module", () => {
                 action: "GET",
                 api_type: "resource",
                 doctype_to_be_tested: "Invoice",
-                actual_test_data: [
-                    {
-                        description: JSON.stringify({ name: "TEST-001" }),
-                    },
-                ],
             };
     
             ldService.executeScript(LdScript as any);
