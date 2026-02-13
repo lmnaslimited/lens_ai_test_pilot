@@ -1,6 +1,11 @@
 import { clDataTypeFactory } from "./dataType";
 import { clPropertiesFactory } from "./properties";
 import { fnGetDelay } from "../src/delay";
+import { ifActionHandler, ifDataType, TTactionsData, TactionData,
+    TtestHeaderData, TtestLabScript,
+    ifConnection,
+    ifTestAction
+ } from "./types"
 
 /** @class clAction - Base abstract class for executing actions on data fields. */
 //clAction base class which implements the ifHandler interface
@@ -47,7 +52,7 @@ abstract class clAction implements ifActionHandler {
 /** @class clActionExpandSection is extended class from the clAction*/
 /* Expand Section class is used to expand the section mentioned in the configurator
 */
-class clActionExpandSection extends clAction {
+export class clActionExpandSection extends clAction {
     constructor(iAction: string, iaActionData: TTactionsData) {
         super(iAction, iaActionData);
     }
@@ -82,7 +87,7 @@ class clActionExpandSection extends clAction {
 }
 
 /** @class clActionOnLoad - Handles actions on page load. */
-class clActionOnLoad extends clAction {
+export class clActionOnLoad extends clAction {
     executeAction(): void { super.executeAction() }
     checkFieldValue(): void { super.checkFieldValue(); }
     checkFieldProperties(): void { super.checkFieldProperties(); }
@@ -91,7 +96,7 @@ class clActionOnLoad extends clAction {
     }
 }
 /** @class clActionOnChange - Handles actions like On Change */
-class clActionOnChange extends clAction {
+export class clActionOnChange extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         if (this.actionRow.tab) {
@@ -111,7 +116,7 @@ class clActionOnChange extends clAction {
         super(iAction, iaActionData);
     }
 }
-class clActionOnChangeChild extends clActionOnChange {
+export class clActionOnChangeChild extends clActionOnChange {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         if (this.actionRow.tab) {
@@ -129,7 +134,7 @@ class clActionOnChangeChild extends clActionOnChange {
         });
     }
 }
-class clActionAddRow extends clAction {
+export class clActionAddRow extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         if (this.actionRow.tab) {
@@ -152,7 +157,7 @@ class clActionAddRow extends clAction {
         });
     }
 }
-class clActionEditDetails extends clAction {
+export class clActionEditDetails extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         if (this.actionRow.tab) {
@@ -177,13 +182,14 @@ class clActionEditDetails extends clAction {
     }
 }
 /** @class clActionOnTab - Handles tab switching. */
-class clActionOnTab extends clAction {
+export class clActionOnTab extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         const Ltab = this.actionRow.tab;
         if (!Ltab) return;
         cy.get('.form-tabs .nav-item a').filter(`:contains("${Ltab}")`).first().click({ force: true });
         cy.wait(fnGetDelay('medium'));
+        
     }
     constructor(iAction: string, iaActionData: TTactionsData) {
         super(iAction, iaActionData);
@@ -191,7 +197,7 @@ class clActionOnTab extends clAction {
 }
 
 /** @class clActionSave Saves the current document/form.*/
-class clActionSave extends clAction {
+export class clActionSave extends clAction {
     executeAction(): void {
         cy.get('body').then(($body: JQuery<HTMLElement>) => {
             const $saveBtn = $body.find('.primary-action:visible');
@@ -209,7 +215,7 @@ class clActionSave extends clAction {
 }
 
 /** @class clActionSubmit Submits the current document/form and confirms submission via modal. */
-class clActionSubmit extends clAction {
+export class clActionSubmit extends clAction {
     executeAction(): void {
         cy.contains('button', 'Submit').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("short"));
@@ -221,7 +227,7 @@ class clActionSubmit extends clAction {
     }
 }
 /** @class clActionCancel Cancels the current document/form and confirms via modal.*/
-class clActionCancel extends clAction {
+export class clActionCancel extends clAction {
     executeAction(): void {
         cy.contains('button', 'Cancel').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("medium"));
@@ -236,13 +242,13 @@ class clActionCancel extends clAction {
         cy.log("Document Cancelled Successfully");
     }
 }
-class clActionAmend extends clAction {
+export class clActionAmend extends clAction {
     executeAction(): void {
 
     }
 }
 /** @class clActionDelete Deletes the current document/form with confirmation modal.*/
-class clActionDelete extends clAction {
+export class clActionDelete extends clAction {
     executeAction(): void {
         cy.get('.menu-btn-group > .btn').click({ force: true });
         cy.contains('a.dropdown-item', 'Delete').should('be.visible').click({ force: true });
@@ -255,7 +261,7 @@ class clActionDelete extends clAction {
     }
 }
 /** @class clActionClickButton Clicks a specified button on the form.*/
-class clActionClickButton extends clAction {
+export class clActionClickButton extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         const LbuttonLabel = this.actionRow.value;
@@ -277,7 +283,7 @@ class clActionClickButton extends clAction {
     }
 }
 /** @class clActionActionMenuTriggers an item from the "Actions" dropdown menu.*/
-class clActionActionMenu extends clAction {
+export class clActionActionMenu extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         const actionLabel = this.actionRow.value;
@@ -295,9 +301,113 @@ class clActionActionMenu extends clAction {
         cy.wait(fnGetDelay("medium"));
     }
 }
+/** @class clActionBanner Validate the Banner message and its colour.*/
+export class clActionBanner extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LBannerMessage = this.actionRow.message?.trim();
+        const LBannerColor = this.actionRow.value;
+
+        if (!LBannerMessage) {
+            throw new Error("Banner message is missing");
+        }
+
+        cy.get(`.form-message.${LBannerColor}:visible`)
+            .last()
+            .should('contain.text', LBannerMessage);
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+
+/** @class clActionAttachments Validate attachment count and attachment name(s). 
+ * in the document
+*/
+export class clActionAttachments extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LaAttachmentNames = this.actionRow.message
+            ?.split(', ')
+            .map(name => name.trim())
+            .filter(Boolean);
+
+        if (!LaAttachmentNames || LaAttachmentNames.length === 0) {
+            throw new Error("Attachment name(s) are missing");
+        }
+
+        // Validate attachment count
+        cy.get('ul.form-attachments li.attachment-row')
+            .should('have.length', LaAttachmentNames.length);
+
+        // Validate attachment name(s)
+        LaAttachmentNames.forEach(iFileName => {
+            cy.contains(
+                'ul.form-attachments li.attachment-row',
+                iFileName
+            ).should('be.visible');
+        });
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+
+/** 
+ * @class clActionAssignments 
+ * Validate assigned user count and assigned user name(s)
+ * in the document.
+ */
+export class clActionAssignments extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LaAssignedUsers = this.actionRow.message
+            ?.split(', ')
+            .map(user => user.trim())
+            .filter(Boolean);
+
+        if (!LaAssignedUsers || LaAssignedUsers.length === 0) {
+            throw new Error("Assigned user name(s) are missing");
+        }
+
+        // Validate assignment count
+        cy.get('ul.form-assignments .assignments .avatar')
+            .should('have.length', LaAssignedUsers.length);
+
+        // Validate assigned user names
+        LaAssignedUsers.forEach(iUserName => {
+            cy.get('ul.form-assignments .assignments .avatar')
+                .filter(`[title="${iUserName}"]`)
+                .should('be.visible');
+        });
+
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+// Validates breadcrumb navigation in forms
+export class clActionBreadcrumbs extends clAction {
+
+    constructor(iAction: string, iaActionData: TTactionsData) {
+        super(iAction, iaActionData);
+    }
+    executeAction(): void {
+
+        this.actionRow = this.actionData[0];
+        const LIdValue: string = this.actionRow.value;
+        if(!LIdValue) {
+            throw new Error('No value was configured for Breadcrumbs')
+        }
+        cy.wait(fnGetDelay("medium"));
+
+        // Validate expected breadcrumb value inside container
+        cy.contains('#navbar-breadcrumbs', LIdValue)
+        .should('be.visible');
+    }
+}
 
 /** @class clActionOnValidate validate the error message*/
-class clActionOnValidate extends clAction {
+export class clActionOnValidate extends clAction {
     executeAction(): void {
         this.actionRow = this.actionData[0];
         cy.wait(fnGetDelay("medium"));
@@ -312,34 +422,125 @@ class clActionOnValidate extends clAction {
         }
     }
 
-
     constructor(iAction: string, iaActionData: TTactionsData) {
         super(iAction, iaActionData);
     }
 }
-/** 
- * @class clActionBreadcrumb
- * Validates breadcrumb navigation in ERPNext forms
- */
-class clActionBreadcrumb extends clAction {
-
-    constructor(iAction: string, iaActionData: TTactionsData) {
-        super(iAction, iaActionData);
-    }
-
+// Validates that a group button displays the expected dropdown menu options
+export class clActionValidateGroupButtonOptions extends clAction {    
     executeAction(): void {
-
         this.actionRow = this.actionData[0];
-        const LIdValue: string = this.actionRow.value;
-        cy.wait(fnGetDelay("medium"));
-
-        // Validate expected breadcrumb value inside container
-        cy.contains('#navbar-breadcrumbs', LIdValue, { timeout: 4000 })
-        .should('be.visible');
+        const LbuttonLabel = this.actionRow.value; // Extract group button label
+        const LaMenus = this.getMenuList(this.actionRow.menus); // Parse expected menu items list    
+        cy.wait(fnGetDelay("medium"));        
+        this.openDropdown(LbuttonLabel); // Open the target group button dropdown
+        this.validateMenuItems(LaMenus); // Verify all expected menu items exist
+    }    
+    // Converts comma-separated menu string into a trimmed string array
+    private getMenuList(LRawMenus: string): string[] {
+        return LRawMenus.split(",").map(m => m.trim());
+    }
+    // Opens the group button dropdown using its visible label
+    private openDropdown(LLabel: string): void 
+    {
+        cy.contains('button', LLabel)
+            .should('have.length', 1)
+            .click({ force: true });       
+        cy.wait(fnGetDelay("long"));
+    }
+    // Validates that each expected dropdown menu item is present
+    private validateMenuItems(LMenuList: string[]): void {
+        for (const item of LMenuList) {
+            cy.get("a.dropdown-item").contains(item).should("exist");
+        }
     }
 }
 
+// Handles click and validation actions for inner group button menu items
+export class clActionClickInnerGroupButton extends clAction {
+    // Executes conditional validation or click flow for a group button
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+        const { value: LbuttonLabel, menus: LMenus, is_hidden: LIshidden, is_read_only: LReadonly } = this.actionRow;        
+        cy.wait(fnGetDelay("medium"));        
+        if (LIshidden) {
+            this.validateButtonIsHidden(LbuttonLabel); // Assert button is not visible in UI
+            return;
+        }        
+        if (LReadonly) {
+            this.validateButtonIsReadonly(LbuttonLabel); // Assert button is disabled
+            return;
+        }        
+        this.clickButton(LbuttonLabel); // Click the group button to open dropdown
+        this.selectMenu(LMenus); // Select the specified dropdown menu item
+    }
+    // Validates that the group button does not exist in the DOM
+    private validateButtonIsHidden(LLabel: string): void {
+        cy.contains('button', LLabel).should("not.exist");
+    }
+    // Validates that the group button is disabled (read-only)
+    private validateButtonIsReadonly(LLabel: string): void {
+        cy.contains('button', LLabel).should("have.attr", "disabled");
+    }
+    // Clicks the group button
+    private clickButton(LLabel: string): void {
+        cy.contains('button', LLabel)
+            .should('have.length', 1)
+            .click({ force: true });        
+        cy.wait(fnGetDelay("long"));
+    }
+    // Selects a specific dropdown menu item by its label
+    private selectMenu(LMenu: string): void {
+        cy.log(LMenu);
+        cy.contains("a.dropdown-item", LMenu).click({ force: true });
+        cy.wait(fnGetDelay("long"));
+    }
+}
+// abstract class for Test SCript Header level
+// to determin Create or UPdate on UI test and
+// GET, PUT, POST on API test
+abstract class clTestAction implements ifTestAction {
+    testScripts: TtestHeaderData;
+    doctype: string
 
+    constructor(iaScripts: TtestHeaderData) {
+        this.testScripts = iaScripts;
+        this.doctype = this.testScripts.doctype_to_be_tested.trim().toLowerCase().replace(/\s+/g, "-");
+    }
+    abstract executeTestAction(): void
+}
+
+/** @class clActionCreation. - this test script is for validating during creation */
+export class clActionCreation extends clTestAction {
+    // navigate to the desired document
+    executeTestAction(): void {
+        cy.location("origin").then(origin => {
+            let LfullUrl = `${origin}/app/${this.doctype}/new`;
+        cy.log(`Navigating to: ${LfullUrl}`);
+        cy.visit(LfullUrl);
+        cy.wait(fnGetDelay("medium"));
+        })
+    }
+}
+
+/** @class clActionUpdate. - this test script is for validating existing document */
+export class clActionUpdate extends clTestAction {
+    documentName: string
+    constructor(iaScripts: TtestHeaderData) {
+        super(iaScripts)
+        this.documentName = this.testScripts.document.trim();
+    }
+
+    // Navigate to new form
+    executeTestAction(): void {
+        cy.location("origin").then(origin => {
+            let LfullUrl = `${origin}/app/${this.doctype}/${this.documentName}`;
+        cy.log(`Navigating to: ${LfullUrl}`);
+        cy.visit(LfullUrl);
+        cy.wait(fnGetDelay("medium"));
+        })
+    }
+}
 
 /** @class clActionFactory - Factory for creating action instances */
 export class clActionFactory {
@@ -360,8 +561,22 @@ export class clActionFactory {
             "Click Button": clActionClickButton,
             "Action Menu": clActionActionMenu,
             "On Validate": clActionOnValidate,
-            "Validate BreadCrumb": clActionBreadcrumb
+            "Click Group Button": clActionClickInnerGroupButton,
+            "Validate Group Button Options":clActionValidateGroupButtonOptions,
+            "On Intro Banner": clActionBanner,
+            "Validate Attachment": clActionAttachments,
+            "Validate Assignee": clActionAssignments,
+            "Validate Breadcrumbs": clActionBreadcrumbs
         };
+
+    /** Action mentioned in the Test Script Header fields */
+    private static testActionsMap: {
+            [key: string] : new (idScript: TtestHeaderData) => clTestAction
+        } = {
+            "Create": clActionCreation,
+            "Update": clActionUpdate
+        }
+
     static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
         if (!LAactionClass) {
@@ -375,87 +590,85 @@ export class clActionFactory {
             ldItem.pos >= iActionRow.pos && ldItem.pos < LposNext
         ));
     }
-    static executeAction(data: TtestHeaderData[]): void {
-        const LvalidRows = data.filter(
-            row =>
-                (row.action === "Create" && row.doctype_to_be_tested.trim()) ||
-                (row.action === "Update" && row.doctype_to_be_tested.trim() && row.document.trim())
-        );
-        if (LvalidRows.length === 0) {
-            cy.log("No valid entries found in CaFilteredParent.");
-            return;
-        }
-        LvalidRows.forEach(row => {
-            const Ldoctype = row.doctype_to_be_tested.trim().toLowerCase().replace(/\s+/g, "-");
-            cy.location("origin").then(origin => {
-                let LfullUrl = `${origin}/app/${Ldoctype}`;
-                switch (row.action) {
-                    case "Create":
-                        LfullUrl += "/new";
-                        break;
-                    case "Update":
-                        const documentName = row.document.trim();
-                        LfullUrl += `/${documentName}`;
-                        break;
-                    default:
-                        cy.log(`Unsupported action type: ${row.action}`);
-                        return;
-                }
-                cy.log(`Navigating to: ${LfullUrl}`);
-                cy.visit(LfullUrl);
-                cy.wait(fnGetDelay("medium"));
-            });
-        });
-    }
-    /**
-        * Handles creating or linking documents via connections within the UI.
-        * If the connection type is "Create", it navigates to the connection, clicks 'Add Row', and saves the new document.
-        * @param script - The test script object containing connection information.
-        * @returns The name of the newly created or linked document wrapped in a Cypress Chainable.
-   */
-    static handleConnection(script: TtestLabScript): Cypress.Chainable<string | null> {
-        const { connection, connection_doctype } = script;
 
-        if (!connection_doctype) {
+    // this method handle the control of naviagtion
+    static executeAction(idScript: TtestHeaderData): ifTestAction {
+        const LaTestActionClass = this.testActionsMap[idScript.action];
+        if (!LaTestActionClass) {
+            throw new Error(`Invalid Test Script action type: ${idScript.action}`);
+        }
+        return new LaTestActionClass(idScript);
+    }
+}
+
+/** @class clConnection - Base abstract class for executing connection businnes logic. */
+//clConnection base class which implements the ifConnection interface
+abstract class clConnection implements ifConnection {
+    testLab: TtestLabScript
+    constructor(idTestLab: TtestLabScript) {
+       this.testLab = idTestLab
+    }
+    handleConnection(): Cypress.Chainable<string | null>{
+        return cy.wrap(null)
+    }
+    
+}
+
+/** @class clConnectionCreate. - create document from connection tab */
+export class clConnectionCreate extends clConnection{
+    handleConnection():Cypress.Chainable<string | null> {
+        if (!this.testLab.connection_doctype) {
             cy.log("Missing connection_doctype, skipping.");
             return cy.wrap(null);
         }
-
-        if (connection === "Create") {
-            cy.log("Initiating connection creation from current document...");
-            return cy.contains(".nav-item", "Connections", { timeout: 10000 })
-                .should("be.visible")
-                .click()
-                .wait(fnGetDelay("medium"))
-                .then(() => {
-                    return cy.get(".form-dashboard", { timeout: 10000 }).within(() => {
-                        return cy.contains(".document-link-badge", connection_doctype, { timeout: 10000 })
-                            .should("be.visible")
-                            .parents(".document-link")
-                            .within(() => {
-                                cy.get("button.btn-open-row, button.btn")
-                                    .should("be.visible")
-                                    .click({ force: true });
-                            });
-                    });
-                })
-                .then(() => {
-                    return cy.contains('button', 'Save')
-                        .scrollIntoView()
-                        .should('exist')
-                        .click({ force: true })
-                        .wait(fnGetDelay("short"))
-                        .url()
-                        .then((url: string) => {
-                            const docname = url.split("/").pop() || null;
-                            cy.log(`Created document: ${docname}`);
-                            script.linked_document = docname || undefined;
-                            // Wrap the value to avoid Cypress async/sync issue
-                            return cy.wrap(docname);
+        cy.log("Initiating connection creation from current document...");
+        return cy.contains(".nav-item", "Connections", { timeout: fnGetDelay("long") })
+            .should("be.visible")
+            .click()
+            .wait(fnGetDelay("medium"))
+            .then(() => {
+                return cy.get(".form-dashboard", { timeout: fnGetDelay("long") }).within(() => {
+                    return cy.contains(".document-link-badge", this.testLab.connection_doctype, { timeout: fnGetDelay("long") })
+                        .should("be.visible")
+                        .parents(".document-link")
+                        .within(() => {
+                            cy.get("button.btn-open-row, button.btn")
+                                .should("be.visible")
+                                .click({ force: true });
                         });
                 });
-        }
-        return cy.wrap(null);
+            })
+            .then(() => {
+                return cy.contains('button', 'Save')
+                    .scrollIntoView()
+                    .should('exist')
+                    .click({ force: true })
+                    .wait(fnGetDelay("short"))
+                    .url()
+                    .then((url: string) => {
+                        const docname = url.split("/").pop() || null;
+                        cy.log(`Created document: ${docname}`);
+                        this.testLab.linked_document = docname || undefined;
+                        // Wrap the value to avoid Cypress async/sync issue
+                        return cy.wrap(docname);
+                    });
+            });
+    }
+}
+
+/** @class clConnectionFactory - Factory for creating connection instances */
+export class clConnectionFactory {
+    private static connectionMap: {
+        [key: string]: new (idTestLab: TtestLabScript) => ifConnection
+    } = {
+            "Create": clConnectionCreate,
     }
 
+    static connection(idTestLab: TtestLabScript): ifConnection {
+        const LaConnectionClass = this.connectionMap[idTestLab.connection];
+        if (!LaConnectionClass) {
+            throw new Error(`Invalid action type: ${idTestLab.connection}`);
+        }
+        return new LaConnectionClass(idTestLab);
+    }
 }

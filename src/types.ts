@@ -1,5 +1,5 @@
 /** @interface ifActionHandler - Represents a handler for performing various actions with associated data.*/
-interface ifActionHandler {
+export interface ifActionHandler {
     action: string
     actionData: TTactionsData
     actionRow: TactionData
@@ -9,13 +9,13 @@ interface ifActionHandler {
     dataType: ifDataType
 }
 /**@interface ifDataType - Defines for handling different data types. */
-interface ifDataType {
+export interface ifDataType {
     dataType: string
     action: ifActionHandler
     validate(): void
     input(): void
 }
-interface ifProperties {
+export interface ifProperties {
     is_read_only: boolean;
     is_mandatory: boolean;
     is_hidden: boolean;
@@ -27,7 +27,7 @@ interface ifProperties {
 }
 /**@type TtestHeaderData - Represents test header data structure.
  *  Contains details about the doctype_to_be_tested and relevant test field data. */
-type TtestHeaderData = {
+export type TtestHeaderData = {
     name: string;
     owner: string;
     creation: Date;
@@ -50,7 +50,7 @@ type TtestHeaderData = {
 /**@type TactionData - Represents the action data.
  * Stores information about an action performed on a field, 
  */
-type TactionData = {
+export type TactionData = {
     doctype_to_be_tested: any
     name: string;
     owner: string;
@@ -80,10 +80,11 @@ type TactionData = {
     tab: string;
     row_index: 1;
     message_type: string;
-
+    message: string;
+    menus : string;
 };
 /**@type TTactionsData - Represents an array of action data. */
-type TTactionsData = TactionData[]
+export type TTactionsData = TactionData[]
 
 // type TcreateRow = {
 //   doctype_to_be_tested: string;
@@ -92,7 +93,7 @@ type TTactionsData = TactionData[]
 // };
 
 
-type TrunLogResponse = {
+export type TrunLogResponse = {
     body: {
         data: {
             name: string;
@@ -103,7 +104,7 @@ type TrunLogResponse = {
     };
 };
 
-type TtestRunResponse = {
+export type TtestRunResponse = {
     body: {
         data: {
             test_log: {
@@ -117,7 +118,7 @@ type TtestRunResponse = {
 };
 
 /** @type TtestLabScript - Represents a single Test Lab Script item */
-type TtestLabScript = {
+export type TtestLabScript = {
   name: string;
   owner: string;
   creation: string;
@@ -137,3 +138,33 @@ type TtestLabScript = {
   parenttype: string;
   doctype: string;
 };
+
+export interface ifTestContext {
+    currentScript: any;
+    createdDocnames: string[];
+    storeDocname: { idx: number; docname: string }[];
+    createdDocsByIndex: { [key: number]: string }[];
+    capturedLogs: string[];
+    capturedErrors: string[];
+    isTestPassed: boolean;
+  }
+
+/**@interface  ifTestRunner - defined for orchistrating 
+ * the Entire Cypress IT execution*/
+export interface ifTestRunner {
+    executeScript(script: any): void;
+    finalizeScript(): void;
+  }
+
+/**@instance ifTestAction - Defined for Header level Action
+ * functionality in the Test Script */
+export interface ifTestAction {
+    testScripts : TtestHeaderData
+    executeTestAction():void
+}
+
+/**@instance ifConnection - defined for Connection behaviour */
+export interface ifConnection {
+    testLab: TtestLabScript
+    handleConnection(): Cypress.Chainable<string | null>;
+}

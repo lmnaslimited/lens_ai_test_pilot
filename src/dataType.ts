@@ -1,6 +1,6 @@
-import { property } from "cypress/types/lodash";
 import { fnGetDelay } from "../src/delay";
-import { clPropertiesFactory } from "./properties";
+import { ifActionHandler, ifDataType, TactionData
+ } from "./types"
 
 /**
  * @class clDataType -Abstract base class for handling different data types.  
@@ -39,7 +39,7 @@ abstract class clDataType implements ifDataType {
     }
 }
 /** @class clDataTypeData - Handles validation and input actions for generic data types. */
-class clDataTypeData extends clDataType {
+export class clDataTypeData extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `input:visible`
@@ -64,7 +64,7 @@ class clDataTypeData extends clDataType {
 }
 
 /** @class clDataTypeDataChild - Handles child data input logic. */
-class clDataTypeDataChild extends clDataTypeData {
+export class clDataTypeDataChild extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -106,7 +106,7 @@ class clDataTypeDataChild extends clDataTypeData {
 }
 
 /** @class clDataTypeSmallText - Handles validation and input for small text data type. */
-class clDataTypeSmallText extends clDataType {
+export class clDataTypeSmallText extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `input:visible`;
@@ -156,7 +156,7 @@ class clDataTypeSmallText extends clDataType {
 }
 
 /** @class clDataTypeLink - Inherits from `clDataTypeData` to handle link-type fields. */
-class clDataTypeLink extends clDataTypeData {
+export class clDataTypeLink extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -170,7 +170,7 @@ class clDataTypeLink extends clDataTypeData {
     }
 }
 /** @class clDataTypeSelect - Handles select dropdown fields. */
-class clDataTypeSelect extends clDataTypeData {
+export class clDataTypeSelect extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `:visible select`
@@ -183,7 +183,7 @@ class clDataTypeSelect extends clDataTypeData {
     }
 }
 /** @class clDataTypeSelectChild - Handles child select field logic. */
-class clDataTypeSelectChild extends clDataTypeSelect {
+export class clDataTypeSelectChild extends clDataTypeSelect {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -225,7 +225,7 @@ class clDataTypeSelectChild extends clDataTypeSelect {
     }
 }
 /** @class clDataTypeDate -Handles date input fields. */
-class clDataTypeDate extends clDataTypeData {
+export class clDataTypeDate extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -235,20 +235,20 @@ class clDataTypeDate extends clDataTypeData {
     }
 }
 /** @class clDataTypeDynamiclink - Handles dynamic link fields. */
-class clDataTypeDynamiclink extends clDataTypeData {
+export class clDataTypeDynamiclink extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
 }
 /** @class clDataTypeCurrency - Handles currency fields. */
-class clDataTypeCurrency extends clDataTypeData {
+export class clDataTypeCurrency extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
 
     }
 }
 
-class clDataTypecheck extends clDataTypeData {
+export class clDataTypecheck extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -279,7 +279,7 @@ class clDataTypecheck extends clDataTypeData {
 }
 
 /** @class clDataTypeHTML - Handles HTML fields. */
-class clDataTypeHTML extends clDataType {
+export class clDataTypeHTML extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = '';
@@ -423,6 +423,3 @@ export class clDataTypeFactory {
         return new laActionClass(data_type, actiondata);
     }
 }
-
-
-
