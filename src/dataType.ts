@@ -307,6 +307,86 @@ export class clDataTypeHTML extends clDataType {
         // No input logic needed for HTML fields
     }
 }
+/** @class clDataTypeDatetime - Handles datetime input fields (date + time). */
+class clDataTypeDatetime extends clDataTypeData {
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = `input:visible`;
+    }
+
+    input(): void {
+        const { value } = this.action.actionRow;
+
+        cy.get(this.getSelector())
+            .should('exist')
+            .and('be.visible')
+            .scrollIntoView()
+            .clear({ force: true })
+            .wait(fnGetDelay("short"))
+            .type(value, { force: true })   // e.g. 02-10-2026 09:00:00
+            .wait(fnGetDelay("short"))
+            .type('{enter}', { force: true })
+            .wait(fnGetDelay("medium"))
+            .blur({ force: true });
+
+        // final assert to ensure Frappe actually saved it
+        cy.get(this.getSelector())
+            .should('have.value', value);
+    }
+
+    validate(): void {
+        if (this.action.actionRow.is_hidden) return;
+
+        const expectedValue = this.action.actionRow.value;
+
+        if (this.action.actionRow.is_read_only) {
+            this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .and('contain.text', expectedValue);
+        } else {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .should('have.value', expectedValue);
+        }
+    }
+}
+
+/** @class clDataTypeTextEditor - Handles Quill Text Editor fields. */
+class clDataTypeTextEditor extends clDataType {
+
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = ` .form-group > .ql-container > .ql-editor`;
+    }
+
+    input(): void {
+        const { value } = this.action.actionRow;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .scrollIntoView()
+            .click({ force: true })
+            .type('{ctrl}a', { force: true })
+            .type('{backspace}', { force: true })
+            .type(value, { force: true })
+            .blur({ force: true });
+    }
+
+    validate(): void {
+        if (this.action.actionRow.is_hidden) return;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .invoke('text')
+            .should('eq', this.action.actionRow.value);
+    }
+}
+
 
 /**
  * 
@@ -323,7 +403,9 @@ export class clDataTypeFactory {
         "Dynamic Link": clDataTypeDynamiclink,
         "Currency": clDataTypeCurrency,
         "Check": clDataTypecheck,
-        "HTML": clDataTypeHTML
+        "HTML": clDataTypeHTML,
+        "Datetime": clDataTypeDatetime,
+        "Text Editor": clDataTypeTextEditor
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];
