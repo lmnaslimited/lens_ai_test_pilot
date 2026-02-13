@@ -1,9 +1,10 @@
-import { clTestRunnerFactory, clTestRunnerUiService } from "../src/services/testScript";
+import { clTestRunnerFactory, clTestRunnerUiService, clTestRunnerApiService } from "../src/services/testScript";
 import { ifTestContext } from "../src/types";
 import { clAuthService } from "../src/services/authService";
 import { clReportService } from "../src/services/reportService";
-import { expect } from "@jest/globals";
+import { jest, beforeEach, describe, expect, it } from "@jest/globals";
 import { clConnectionFactory } from "../src/action";
+
 
 // Target base URL used by the test runner
 const LTargetUrl = "http://localhost:3000";
@@ -14,15 +15,16 @@ const LTargetUrl = "http://localhost:3000";
 * Purpose:
 * - prevent real browser execution
 * - allow assertions on navigation and timing intent*/
-(global as any).cy = {
+(globalThis as any).cy = {
 visit: jest.fn(), // used for navigation after login
 wait: jest.fn(), // used for execution delays
-url: jest.fn(), // used for capturing created documents
+url: jest.fn(),// used for capturing created documents
+ log: jest.fn(),  
 };
 
 /**Cypress.env is accessed during execution.
 * Mocking avoids runtime crashes inside Jest.*/
-(global as any).Cypress = {
+(globalThis as any).Cypress = {
 env: jest.fn(),
 };
 
@@ -502,3 +504,136 @@ expect(ldContext.currentScript).toBeNull();
 
 })
 })
+
+// describe("clTestRunnerApiService", () => {
+//   let ldContext: ifTestContext;
+//   let ldAuth: clAuthService;
+//   let ldReport: clReportService;
+//   let ldService: clTestRunnerApiService;
+
+//   const LLoginData = {
+//     TestApiScript1: {
+//       email: "api@example.com",
+//       password: "secretApi",
+//     },
+//   };
+
+//   const LdCreateContext = () =>
+//     new clTestRunnerApiService(
+//       ldContext,
+//       "http://localhost:3000",
+//       LLoginData,
+//       ldAuth,
+//       { test_lab_script: [] },
+//       ldReport
+//     );
+
+//   beforeEach(() => {
+//     ldContext = {
+//       currentScript: null,
+//       createdDocnames: [],
+//       storeDocname: [],
+//       createdDocsByIndex: [],
+//       capturedLogs: [],
+//       capturedErrors: [],
+//       isTestPassed: true,
+//     } as ifTestContext;
+
+//     // Auth mock
+//     ldAuth = {
+//       login: jest.fn().mockResolvedValue(undefined),
+//       logout: jest.fn(),
+//     } as unknown as clAuthService;
+
+//     // Report mock
+//     ldReport = {
+//       postRunLog: jest.fn(),
+//       getTestRun: jest.fn(),
+//       updateTestLog: jest.fn(),
+//     } as unknown as clReportService;
+
+//     // Create API service instance
+//     ldService = LdCreateContext();
+//   });
+
+//   it("sets currentScript on execution start", () => {
+//     const LdScript = { name: "TestApiScript1", test_type: "API", action: "GET", api_type: "method" };
+//     ldService.executeScript(LdScript as any);
+//     expect(ldContext.currentScript).toBe(LdScript);
+//   });
+
+//   it("throws error if login credentials are missing", () => {
+//     const LdScript = { name: "UnknownScript", test_type: "API", action: "GET", api_type: "method" };
+//     expect(() => ldService.executeScript(LdScript as any)).toThrow("No login credentials for UnknownScript");
+//   });
+
+//   it("calls login exactly once per execution", async () => {
+//     const LdScript = { name: "TestApiScript1", test_type: "API", action: "GET", api_type: "method" };
+
+//     // Spy on internal ApiBuilderFactory.execute to call login
+//     const loginSpy = jest.spyOn(ldAuth, "login");
+//     ldService.executeScript(LdScript as any);
+//     expect(loginSpy).toHaveBeenCalledTimes(1);
+//     expect(loginSpy).toHaveBeenCalledWith("api@example.com", "secretApi");
+//   });
+
+//   it("marks test as failed if API response status >= 400", async () => {
+//     const LdScript = { name: "TestApiScript1", test_type: "API", action: "GET", api_type: "method" };
+//     // Mock Cypress request
+//     (global as any).cy.request = jest.fn().mockResolvedValue({ status: 500 });
+
+//     // Override ApiBuilderFactory.validateResponse to call real logic
+//     const consoleSpy = jest.spyOn(global.console, "log").mockImplementation(() => {});
+
+//     await expect(() => ldService.executeScript(LdScript as any)).toThrow(
+//       `API GET failed for TestApiScript1`
+//     );
+
+//     expect(ldContext.isTestPassed).toBe(false);
+//     expect(ldContext.capturedErrors).toContain(`API GET failed for TestApiScript1`);
+
+//     consoleSpy.mockRestore();
+//   });
+
+//  it("logs success when API response is OK", async () => {
+//   const LdScript = { 
+//     name: "TestApiScript1", 
+//     test_type: "API", 
+//     action: "GET", 
+//     api_type: "method", 
+//     actual_test_data: [{ description: { field1: "value1" } }] 
+//   };
+
+//   // Mock API response
+//   (cy.request as jest.Mock).mockResolvedValue({
+//     status: 200,
+//     body: { message: { field1: "value1" } },
+//   });
+
+//   // Execute the API script
+//   ldService.executeScript(LdScript as any);
+
+//   // Verify test context state
+//   expect(ldContext.isTestPassed).toBe(true);
+
+//   // Verify Cypress log was called
+//   expect(cy.log).toHaveBeenCalledWith("API GET passed for TestApiScript1");
+// });
+
+
+//   it("can be created via clTestRunnerFactory for API", () => {
+//     const LdScript = { test_type: "API" };
+//     const runner = clTestRunnerFactory.create(
+//       LdScript,
+//       ldContext,
+//       ldAuth,
+//       ldReport,
+//       "http://localhost:3000",
+//       {},
+//       {},
+//       LLoginData
+//     );
+
+//     expect(runner).toBeInstanceOf(clTestRunnerApiService);
+//   });
+// });
