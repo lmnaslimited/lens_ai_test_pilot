@@ -416,21 +416,27 @@ class ApiBuilderFactory {
 
   // Construct API endpoint dynamically based on script configuration
   private static buildUrl(iTargetUrl: string, idScript: any): string {
-    // Start with base URL and API prefix
-    const laParts: string[] = [iTargetUrl, "api", idScript.api_type];
 
-    // Append doctype for resource APIs
-    if (idScript.api_type !== "method") {
-      laParts.push(idScript.doctype_to_be_tested);
+    const lEndpointType = idScript.actual_test_data?.[0]?.value; // resource / method
+    const lDoctype = idScript.doctype_to_be_tested;
+    const lDocument = idScript.document;
+  
+    let lUrl = `${iTargetUrl}/api/${lEndpointType}`;
+  
+    // For resource APIs append doctype
+    if (lEndpointType === "resource" && lDoctype) {
+      lUrl += `/${lDoctype}`;
     }
-
-    // Append document name if provided
-    if (idScript.document) {
-      laParts.push(idScript.document);
+  
+    // Append document if exists
+    if (lDocument) {
+      lUrl += `/${lDocument}`;
     }
-
-    // Join URL parts and append query parameters if present
-    return `${laParts.join("/")}${this.buildParams(idScript.params)}`;
+  
+    // Append query params from message
+    lUrl += this.buildParams(idScript.actual_test_data?.[0]?.message);
+  
+    return lUrl;
   }
 
   // Normalize query parameters by ensuring proper prefix
@@ -476,10 +482,12 @@ class ApiBuilderFactory {
     }
 
     // Determine validation target based on API type
+    const lEndpointType = idScript.value;
+
     const LdActualRow =
-    idScript.api_type === "resource"
-        ? idResponse.body.data?.[0]  // Resource APIs return data array
-        : idResponse.body.message;   // Method APIs return message object
+      lEndpointType === "resource"
+        ? idResponse.body.data?.[0]
+        : idResponse.body.message;
 
         // Perform field-level validation for GET requests
     if (idScript.action === "GET" && idPayload && LdActualRow) {
