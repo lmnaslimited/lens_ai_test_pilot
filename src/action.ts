@@ -262,26 +262,49 @@ export class clActionDelete extends clAction {
 }
 /** @class clActionClickButton Clicks a specified button on the form.*/
 export class clActionClickButton extends clAction {
+
     executeAction(): void {
+
         this.actionRow = this.actionData[0];
         const LbuttonLabel = this.actionRow.value;
-        cy.contains('button, a', LbuttonLabel, { matchCase: false }).scrollIntoView().click({ force: true });
+
+        // Click button
+        cy.contains('button, a', LbuttonLabel, { matchCase: false })
+            .scrollIntoView()
+            .click({ force: true });
+
         cy.log(`Clicked custom button: ${LbuttonLabel}`);
         cy.wait(fnGetDelay("medium"));
-        // Check if clicking the button triggered a visible modal popup.
+
+        // Check if clicking triggered a visible modal
         cy.get('body').then(($body: JQuery<HTMLElement>) => {
-            const hasModal = $body.find('.modal:visible').length > 0;
-            if (hasModal) {
-                // If the modal popup is present, click the 'Yes' button inside the modal.
-                cy.get('.modal:visible').within(() => {
-                    cy.contains('button', /^Yes$/)
+
+            const $visibleModal = $body.find('.modal:visible');
+
+            if ($visibleModal.length > 0) {
+
+                const $yesButton = $visibleModal
+                    .find('button')
+                    .filter((_, btn) => btn.innerText.trim() === 'Yes');
+
+                if ($yesButton.length > 0) {
+
+                    cy.wrap($yesButton)
                         .click({ force: true });
+
                     cy.log('Clicked Yes in modal');
-                });
+
+                } else {
+                    cy.log('Modal present but no Yes button');
+                }
+
+            } else {
+                cy.log('No modal present');
             }
         });
     }
 }
+
 /** @class clActionActionMenuTriggers an item from the "Actions" dropdown menu.*/
 export class clActionActionMenu extends clAction {
     executeAction(): void {
@@ -496,6 +519,54 @@ export class clActionClickInnerGroupButton extends clAction {
         cy.wait(fnGetDelay("long"));
     }
 }
+/** @Class clActionValidateEmailAttachments Validate that all sidebar 
+ * attachments are present in email attachment list */
+export class clActionValidateEmailAttachments extends clAction {
+    executeAction(): void {
+        // Array to store attachment names collected from the sidebar
+        const LaSidebarAttachments: string[] = [];
+        // Array to store attachment names collected from the Email
+        const LaEmailAttachments: string[] = [];
+        cy.wait(fnGetDelay("medium"));
+        // STEP 1: Collect Sidebar Attachments 
+        // Selecting attachment links inside sidebar attachment section
+        cy.get('ul.form-attachments li.attachment-row a[title]')
+            .each(($el) => {
+                // Extract attachment name from title attribute 
+                const Ltext = $el.attr("title")?.trim() || "";
+                // Push each attachment name into sidebar array
+                LaSidebarAttachments.push(Ltext);
+            })
+            .then(() => {
+                // STEP 2: Collect Email Attachment List
+                // Selecting attachment labels shown inside Email "Select Attachments" section
+                cy.get('[data-fieldname="select_attachments"] .attach-list label[title]')
+                    .each(($el) => {
+                        // Extract attachment name from title attribute
+                        const Ltext = $el.attr("title")?.trim() || "";
+                        // Push each email attachment name into email array
+                        LaEmailAttachments.push(Ltext);
+                    })
+                    .then(() => {
+                        // STEP 3:Validate that all sidebar attachments are present in email attachment list
+                        // (Duplicates in email are allowed; only presence is validated)
+                        expect(LaEmailAttachments)
+                            .to.include.members(LaSidebarAttachments);
+                        // STEP 4: Ensure each attachment checkbox is present and editable by user
+                        cy.get('[data-fieldname="select_attachments"] .attach-list input[type="checkbox"]')
+                            .each(($checkbox) => {
+                                // Validate checkbox exists in DOM and is not disabled
+                                // Confirms user has permission to select/deselect attachment
+                                cy.wrap($checkbox)
+                                    .should('exist')
+                                    .and('not.be.disabled');
+                            });
+
+                    });
+            });
+    }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
 // GET, PUT, POST on API test
@@ -566,7 +637,8 @@ export class clActionFactory {
             "On Intro Banner": clActionBanner,
             "Validate Attachment": clActionAttachments,
             "Validate Assignee": clActionAssignments,
-            "Validate Breadcrumbs": clActionBreadcrumbs
+            "Validate Breadcrumbs": clActionBreadcrumbs,
+            "Validate Email Attachments": clActionValidateEmailAttachments
         };
 
     /** Action mentioned in the Test Script Header fields */
