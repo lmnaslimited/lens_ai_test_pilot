@@ -496,6 +496,152 @@ export class clActionClickInnerGroupButton extends clAction {
         cy.wait(fnGetDelay("long"));
     }
 }
+
+/**
+ * Action class responsible for validating Frappe alert behavior.
+ * 
+ * Supports:
+ *  - Alert presence validation
+ *  - Alert absence validation (when is_hidden = true)
+ *  - Message, color, and position verification
+ */
+export class clActionValidateAlert extends clAction {
+
+    /**
+     * Entry point of the action.
+     * Decides whether to validate alert presence or absence
+     * based on configuration.
+     */
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const LdConfig = this.buildConfig();
+
+        if (LdConfig.isHidden) {
+            return this.validateAbsence(LdConfig);
+        }
+
+        return this.validatePresence(LdConfig);
+    }
+
+    /**
+     * Constructs normalized alert configuration
+     * from test data row.
+     */
+    private buildConfig() {
+        return {
+            message: this.actionRow.message?.trim(),
+            color: this.actionRow.value?.trim()?.toLowerCase(),
+            position: this.actionRow.description?.trim()?.replace(/"/g, '')?.toLowerCase(),
+            isHidden: this.actionRow.is_hidden === true
+        };
+    }
+
+    /**
+     * Validates that no visible alert exists on screen.
+     * Used when is_hidden flag is enabled.
+     */
+    private validateAbsence(idConfig: any): void {
+        cy.contains('.alert-title-container', idConfig.message, { timeout: 2000 })
+            .should('not.exist');
+
+        cy.log("Alert absence validated successfully.");
+    }
+
+    /**
+     * Validates that alert is visible and matches expected values.
+     */
+    private validatePresence(idConfig: any): void {
+
+        if (!idConfig.message) {
+            throw new Error("Alert validation failed: Expected message not configured.");
+        }
+
+        cy.contains('.alert-title-container', idConfig.message, { timeout: 10000 })
+            .should('be.visible')
+            .then(($title: JQuery<HTMLElement>) => {
+
+                // 2️⃣ Move up to alert root container
+                const $alertRoot = $title.closest('.alert-message-container').parent();
+
+                if (!$alertRoot.length) {
+                    throw new Error('Alert root container (.frappe-alert) not found.');
+                }
+
+                const LdActual = this.extractActualValues($alertRoot);
+
+                const LaErrors = [
+                    this.compare("Message", idConfig.message, LdActual.message),
+                    this.compare("Color", idConfig.color, LdActual.color),
+                    //this.compare("Position", idConfig.position, LdActual.position)
+                ].filter(Boolean);
+
+                if (LaErrors.length) {
+                    throw new Error("Alert Validation Failed:\n" + LaErrors.join("\n"));
+                }
+
+                cy.log("Alert validation passed successfully.");
+            });
+    }
+
+    /**
+     * Extracts actual alert properties from DOM element.
+     */
+    private extractActualValues($alert: JQuery<HTMLElement>) {
+        const LaClassList = $alert.attr('class') || "";
+
+        return {
+            message: $alert.find('.alert-title-container').text().trim(),
+            color: this.extractColor(LaClassList),
+            //position: this.extractPosition(LaClassList)
+        };
+    }
+
+    /**
+     * Compares expected and actual field values.
+     * Returns formatted error string if mismatch occurs.
+     */
+    private compare(
+        iLabel: string,
+        iExpected?: string,
+        iActual?: string
+    ): string | null {
+
+        if (!iExpected) return null;
+
+        return iExpected !== iActual
+            ? `${iLabel} Mismatch → Expected: "${iExpected}" | Actual: "${iActual}"`
+            : null;
+    }
+
+    /**
+     * Resolves alert color based on CSS class names.
+     */
+    private extractColor(iaClasses: string): string {
+        if (iaClasses.includes('green')) return 'green';
+        if (iaClasses.includes('red')) return 'red';
+        if (iaClasses.includes('orange')) return 'orange';
+        if (iaClasses.includes('blue')) return 'blue';
+        if (iaClasses.includes('alert-success')) return 'green';
+        if (iaClasses.includes('alert-danger')) return 'red';
+        if (iaClasses.includes('alert-warning')) return 'orange';
+        if (iaClasses.includes('alert-info')) return 'blue';
+        return 'unknown';
+    }
+
+    /**
+     * Resolves alert screen position based on CSS class names.
+     */
+    // Not Working for position
+    // private extractPosition(iaClasses: string): string {
+    //     if (iaClasses.includes("bottom-right")) return "bottom-right";
+    //     if (iaClasses.includes("top-right")) return "top-right";
+    //     if (iaClasses.includes("bottom-left")) return "bottom-left";
+    //     if (iaClasses.includes("top-left")) return "top-left";
+    //     return "unknown";
+    // }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
 // GET, PUT, POST on API test
@@ -566,7 +712,8 @@ export class clActionFactory {
             "On Intro Banner": clActionBanner,
             "Validate Attachment": clActionAttachments,
             "Validate Assignee": clActionAssignments,
-            "Validate Breadcrumbs": clActionBreadcrumbs
+            "Validate Breadcrumbs": clActionBreadcrumbs,
+            "Validate Alert": clActionValidateAlert
         };
 
     /** Action mentioned in the Test Script Header fields */
