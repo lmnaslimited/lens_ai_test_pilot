@@ -533,7 +533,7 @@ export class clActionValidateAlert extends clAction {
             message: this.actionRow.message?.trim(),
             color: this.actionRow.value?.trim()?.toLowerCase(),
             position: this.actionRow.description?.trim()?.replace(/"/g, '')?.toLowerCase(),
-            isHidden: this.actionRow.is_hidden === true
+            isHidden: this.actionRow.is_hidden
         };
     }
 
@@ -570,10 +570,16 @@ export class clActionValidateAlert extends clAction {
 
                 const LdActual = this.extractActualValues($alertRoot);
 
+                cy.log(`Actual Message: ${LdActual.message}`);
+
+                cy.log(`Actual Color: ${LdActual.color}`);
+
+                cy.log(`Actual Position: ${LdActual.position}`);
+
                 const LaErrors = [
                     this.compare("Message", idConfig.message, LdActual.message),
                     this.compare("Color", idConfig.color, LdActual.color),
-                    //this.compare("Position", idConfig.position, LdActual.position)
+                    this.compare("Position", idConfig.position, LdActual.position)
                 ].filter(Boolean);
 
                 if (LaErrors.length) {
@@ -593,7 +599,7 @@ export class clActionValidateAlert extends clAction {
         return {
             message: $alert.find('.alert-title-container').text().trim(),
             color: this.extractColor(LaClassList),
-            //position: this.extractPosition(LaClassList)
+            position: this.extractPositionFromCss($alert)
         };
     }
 
@@ -630,16 +636,33 @@ export class clActionValidateAlert extends clAction {
     }
 
     /**
-     * Resolves alert screen position based on CSS class names.
+     * Determines toast position using computed CSS properties.
      */
-    // Not Working for position
-    // private extractPosition(iaClasses: string): string {
-    //     if (iaClasses.includes("bottom-right")) return "bottom-right";
-    //     if (iaClasses.includes("top-right")) return "top-right";
-    //     if (iaClasses.includes("bottom-left")) return "bottom-left";
-    //     if (iaClasses.includes("top-left")) return "top-left";
-    //     return "unknown";
-    // }
+    private extractPositionFromCss($alert: JQuery<HTMLElement>): string {
+
+        const LTop = $alert.css('top');
+        const LBottom = $alert.css('bottom');
+        const LLeft = $alert.css('left');
+        const LRight = $alert.css('right');
+
+        if (LBottom !== 'auto' && LRight !== 'auto') {
+            return 'bottom-right';
+        }
+
+        if (LBottom !== 'auto' && LLeft !== 'auto') {
+            return 'bottom-left';
+        }
+
+        if (LTop !== 'auto' && LRight !== 'auto') {
+            return 'top-right';
+        }
+
+        if (LTop !== 'auto' && LLeft !== 'auto') {
+            return 'top-left';
+        }
+
+        return 'unknown';
+    }
 }
 
 // abstract class for Test SCript Header level
