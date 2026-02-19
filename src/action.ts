@@ -523,49 +523,44 @@ export class clActionClickInnerGroupButton extends clAction {
  * attachments are present in email attachment list */
 export class clActionValidateEmailAttachments extends clAction {
     executeAction(): void {
-        // Array to store attachment names collected from the sidebar
+        // Array to store attachment names from Sidebar
         const LaSidebarAttachments: string[] = [];
-        // Array to store attachment names collected from the Email
+        // Array to store attachment names from Email
         const LaEmailAttachments: string[] = [];
         cy.wait(fnGetDelay("medium"));
-        // STEP 1: Collect Sidebar Attachments 
-        // Selecting attachment links inside sidebar attachment section
+        // STEP 1: Collect Sidebar Attachments
+        // Select attachment links from sidebar and store title values
         cy.get('ul.form-attachments li.attachment-row a[title]')
             .each(($el) => {
-                // Extract attachment name from title attribute 
                 const Ltext = $el.attr("title")?.trim() || "";
-                // Push each attachment name into sidebar array
                 LaSidebarAttachments.push(Ltext);
             })
             .then(() => {
-                // STEP 2: Collect Email Attachment List
-                // Selecting attachment labels shown inside Email "Select Attachments" section
+                // STEP 2: Collect Email Attachments
+                // Select attachment labels from email "Select Attachments" section
                 cy.get('[data-fieldname="select_attachments"] .attach-list label[title]')
                     .each(($el) => {
-                        // Extract attachment name from title attribute
                         const Ltext = $el.attr("title")?.trim() || "";
-                        // Push each email attachment name into email array
                         LaEmailAttachments.push(Ltext);
                     })
                     .then(() => {
-                        // STEP 3:Validate that all sidebar attachments are present in email attachment list
-                        // (Duplicates in email are allowed; only presence is validated)
+                        // STEP 3: Validate all sidebar attachments are present in email
+                        // (Duplicates in email are allowed, only presence is checked)
                         expect(LaEmailAttachments)
                             .to.include.members(LaSidebarAttachments);
-                        // STEP 4: Ensure each attachment checkbox is present and editable by user
+                        // STEP 4: Validate attachment checkboxes exist and are enabled
                         cy.get('[data-fieldname="select_attachments"] .attach-list input[type="checkbox"]')
                             .each(($checkbox) => {
-                                // Validate checkbox exists in DOM and is not disabled
-                                // Confirms user has permission to select/deselect attachment
                                 cy.wrap($checkbox)
                                     .should('exist')
                                     .and('not.be.disabled');
                             });
-
+                        cy.log("Attachment validation passed successfully");
                     });
             });
     }
 }
+
 
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
