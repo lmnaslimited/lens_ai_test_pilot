@@ -270,12 +270,22 @@ export class clDataTypecheck extends clDataTypeData {
     }
 
     validate(): void {
-        const { value, field_name } = this.action.actionRow;
+        const { value, field_name, is_hidden, is_read_only  } = this.action.actionRow;
         const shouldBeChecked = value === "1";
+        if (is_hidden) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("not.exist");
+            return;
+        }
+        if (is_read_only) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("be.disabled");
+        }
         cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
             .first()
             .should(shouldBeChecked ? 'be.checked' : 'not.be.checked');
     }
+    
 }
 
 /** @class clDataTypeHTML - Handles HTML fields. */

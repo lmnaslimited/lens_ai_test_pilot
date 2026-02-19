@@ -496,6 +496,39 @@ export class clActionClickInnerGroupButton extends clAction {
         cy.wait(fnGetDelay("long"));
     }
 }
+
+export class clActionValidateButton extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const {
+            value: LbuttonLabel,
+            is_hidden: LIshidden,
+            is_read_only: LReadonly
+        } = this.actionRow;
+
+        cy.wait(fnGetDelay("medium"));
+
+        if (LIshidden) {
+            cy.contains('button, a', LbuttonLabel)
+              .should("not.exist");
+            return;
+        }
+
+        cy.contains('button, a', LbuttonLabel)
+          .should("exist")
+          .and("be.visible");
+
+        if (LReadonly) {
+            cy.contains('button, a', LbuttonLabel)
+              .should("have.attr", "disabled");
+        } else {
+            cy.contains('button, a', LbuttonLabel)
+              .should("not.have.attr", "disabled");
+        }
+    }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
 // GET, PUT, POST on API test
@@ -566,7 +599,8 @@ export class clActionFactory {
             "On Intro Banner": clActionBanner,
             "Validate Attachment": clActionAttachments,
             "Validate Assignee": clActionAssignments,
-            "Validate Breadcrumbs": clActionBreadcrumbs
+            "Validate Breadcrumbs": clActionBreadcrumbs,
+            "Button Visibility": clActionValidateButton
         };
 
     /** Action mentioned in the Test Script Header fields */
