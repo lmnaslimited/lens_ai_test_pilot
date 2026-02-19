@@ -198,6 +198,7 @@ export class clActionOnTab extends clAction {
 
 /** @class clActionSave Saves the current document/form.*/
 export class clActionSave extends clAction {
+    protected lActionMessage: string = "saved successfully.";
     executeAction(): void {
         cy.get('body').then(($body: JQuery<HTMLElement>) => {
             const $saveBtn = $body.find('.primary-action:visible');
@@ -205,10 +206,10 @@ export class clActionSave extends clAction {
                 cy.wrap($saveBtn)
                     .scrollIntoView()
                     .click({ force: true });
-                cy.log(`saved successfully.`);
+                cy.log(this.lActionMessage);
                 cy.wait(fnGetDelay("short"));
             } else {
-                throw new Error("No visible Save button (.primary-action) found in DOM.");
+                throw new Error(`No visible ${this.lActionMessage} (.primary-action) found in DOM.`);
             }
         });
     }
@@ -242,10 +243,8 @@ export class clActionCancel extends clAction {
         cy.log("Document Cancelled Successfully");
     }
 }
-export class clActionAmend extends clAction {
-    executeAction(): void {
-
-    }
+export class clActionAmend extends clActionSave {
+    protected lActionMessage: string = "amend successfully.";
 }
 /** @class clActionDelete Deletes the current document/form with confirmation modal.*/
 export class clActionDelete extends clAction {

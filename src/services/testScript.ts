@@ -41,14 +41,15 @@ export abstract class clTestRunnerService implements ifTestRunner {
 
     // Iterate through each resolved script name
     LaScriptNames.forEach((iName) => {
-
+      
       // Locate the corresponding Test Lab row using master data name
       const LdScriptRow = this.findTestLabRow(iName);
       // Skip processing if no matching Test Lab configuration is found
       if (!LdScriptRow) return;
-
+      
       // Create run log entry and update associated Test Log child records
       this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
+      this.ldContext.currentScriptRowIdx++;
     });
 
     // Clear execution state to prepare context for next script
@@ -86,7 +87,7 @@ export abstract class clTestRunnerService implements ifTestRunner {
   protected findTestLabRow(iMasterDataName: string) {
     // Search test_lab_script array for matching master_data field
     return this.ldTestLabData.test_lab_script.find(
-      (idRow: any) => idRow.master_data === iMasterDataName
+      (idRow: any) => idRow.master_data === iMasterDataName && idRow.idx === this.ldContext.currentScriptRowIdx
     );
   }
 
@@ -125,7 +126,8 @@ export abstract class clTestRunnerService implements ifTestRunner {
               ldTestRunResponse.body.data.test_log.filter(
                 (ldEntry: any) =>
                   ldEntry.test_script === idScriptRow.test_script &&
-                  ldEntry.master_data === iName
+                  ldEntry.master_data === iName &&
+                  Number(ldEntry.idx) === Number(idScriptRow.idx)
               );
 
             // Iterate through each matching Test Log row
@@ -229,7 +231,7 @@ export class clTestRunnerUiService extends clTestRunnerService {
     const LdStoredDoc = this.ldContext.storeDocname.find(
       (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
     );
-
+    
     // Inject document name into script if found
     if (LdStoredDoc?.docname) {
       idScript.document = LdStoredDoc.docname;
