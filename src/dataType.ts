@@ -48,6 +48,15 @@ export class clDataTypeData extends clDataType {
         if (this.action.actionRow.is_hidden) {
             return;
         }
+        // Special handling for null or undefined values to ensure the field is empty
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .invoke('val')
+                .should('be.empty');
+            return;
+        }
         if (this.action.actionRow.is_read_only) {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
             cy.get(this.getSelector()).should('exist').and('be.visible').and('have.text', this.action.actionRow.value);
@@ -270,12 +279,22 @@ export class clDataTypecheck extends clDataTypeData {
     }
 
     validate(): void {
-        const { value, field_name } = this.action.actionRow;
+        const { value, field_name, is_hidden, is_read_only  } = this.action.actionRow;
         const shouldBeChecked = value === "1";
+        if (is_hidden) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("not.exist");
+            return;
+        }
+        if (is_read_only) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("be.disabled");
+        }
         cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
             .first()
             .should(shouldBeChecked ? 'be.checked' : 'not.be.checked');
     }
+    
 }
 
 /** @class clDataTypeHTML - Handles HTML fields. */

@@ -3,6 +3,7 @@ import { clAuthService } from "../../src/services/authService";
 import { clLogCaptureService } from "../../src/services/logCaptureService";
 import { clReportService } from "../../src/services/reportService";
 import { clTestRunnerFactory } from "../../src/services/testScript";
+import { ifTestRunner } from "../../src/types";
 
 const LdContext = createDefaultContext(); //initialize the default test context
 
@@ -36,11 +37,8 @@ describe("Automated Test Run", () => {
   const LdScripts = Cypress.env("FETCHED_MASTER_DATA") as any[];
   //each master data in the Test Lab
   // become separate IT
-  LdScripts.forEach((ldScript) => {
-    let ldRunner: {
-      executeScript: (ldScript: any) => void;
-      finalizeScript: () => void;
-    };
+  LdScripts.forEach((ldScript, iIndex) => {
+    let ldRunner: ifTestRunner
     // Determining Test Type "UI / API"
     ldRunner = clTestRunnerFactory.create(ldScript, LdContext,
       LdAuthService, LdReportService, LTargetUrl,

@@ -82,6 +82,7 @@ export type TactionData = {
     message_type: string;
     message: string;
     menus : string;
+    description : string;
 };
 /**@type TTactionsData - Represents an array of action data. */
 export type TTactionsData = TactionData[]
@@ -141,6 +142,7 @@ export type TtestLabScript = {
 
 export interface ifTestContext {
     currentScript: any;
+    currentScriptRowIdx: number; 
     createdDocnames: string[];
     storeDocname: { idx: number; docname: string }[];
     createdDocsByIndex: { [key: number]: string }[];

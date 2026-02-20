@@ -7,9 +7,10 @@ import {
   clActionClickInnerGroupButton, // Action that clicks a menu item inside a button
   clActionCreation, // Action used when creating a document
   clActionUpdate, // Action used when updating a document
-  clActionAssignments,
-  clActionAttachments,
+  clActionAssignments, //Action used to check Assignments
+  clActionAttachments, //Action Used to check Attachments
   clActionBreadcrumbs, //Action used to check document id
+  clActionValidateEmailAttachments, // Action used to validate Email Attachment
 } from "../src/action";
 
 // Import delay helper (used to simulate waiting in UI)
@@ -67,6 +68,7 @@ Why:
       contains: jest.fn(() => cyChain),
       wait: jest.fn(),
       log: jest.fn(),
+      wrap: jest.fn()
     };
 
     // Make the mocked Cypress object globally available
@@ -593,7 +595,7 @@ Purpose:
       // WHEN executeAction runs
       ldInstance.executeAction();
       // THEN correct avatar selector is used
-      expect(cy.get).toHaveBeenCalledWith(
+      expect(cyMock.get).toHaveBeenCalledWith(
         "ul.form-assignments .assignments .avatar",
       );
     });
@@ -817,4 +819,327 @@ Purpose:
       );
     });
   });
+  // clActionValidateEmailAttachments - THis suite validate the attachment
+  // in the new email dialag
+  describe("Test Suite for clActionValidateEmailAttachments", ()=>{
+    let ldEmailValidation: clActionValidateEmailAttachments
+    beforeEach(()=>{
+      jest.clearAllMocks();
+      ldEmailValidation = new clActionValidateEmailAttachments("Validate Email Attachments", laMockActionData)
+    })
+    it("Should Instantiate Email Vlaidation class when action is Validate Email Attachments", ()=>{
+      const LdEmailInstance = clActionFactory.createAction("Validate Email Attachments", laMockActionData)
+
+      // When the Action type is "Validate Email Attachments", it should
+      // instantiate clActionValidateEmailAttachments class
+      expect(LdEmailInstance).toBeInstanceOf(clActionValidateEmailAttachments)
+    })
+
+    it("Should throw error when attachments are missing in email", () => {
+
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding one attachment in the sidebar
+      // and manually invokes the .each() callback with a fake element
+      // whose title attribute returns "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement: any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+      
+      // Mock the email attachment list.
+      // This simulates Cypress finding NO attachments in the email dialog.
+      // The .each() callback is never invoked, so the email attachment array remains empty.
+      const LaEmailEach = jest.fn(() => ({
+        then: (fn: Function) => fn()
+      }));
+
+      // First time cy.get() is called → return sidebar mock
+      // Second time cy.get() is called → return email mock
+      // because we are taking the input from sidebar then validating 
+      // it in email (which is chainable action)
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach });
+
+      // Since the email has no attachments,
+      // the executeAction() method should throw the expected error.
+      expect(()=>ldEmailValidation.executeAction())
+        .toThrow("No email attachments found.");
+    });
+
+    it("Should throw error when attachment count mismatch", () => {
+
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding TWO attachments in the sidebar
+      // by manually invoking the .each() callback twice with
+      // fake elements returning "file1.pdf" and "file2.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        idSidebarElement({ attr: () => "file2.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding ONLY ONE attachment in the email dialog.
+      // The .each() callback is invoked once with "file1.pdf".
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // First cy.get() call returns the sidebar mock (2 attachments)
+      // Second cy.get() call returns the email mock (1 attachment)
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach });
+      
+      // Since the number of sidebar attachments (2)
+      // does not match the number of email attachments (1),
+      // the executeAction() method should throw "Attachment count mismatch."
+      expect(() => ldEmailValidation.executeAction())
+        .toThrow("Attachment count mismatch.");
+    });
+
+    it("Should pass when attachment count are same", () => {
+
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding TWO attachments in the sidebar
+      // by manually invoking the .each() callback twice with
+      // fake elements returning "file1.pdf" and "file2.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        idSidebarElement({ attr: () => "file2.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding the SAME TWO attachments
+      // in the email dialog by invoking the callback twice
+      // with identical file names.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        idEmailElement({ attr: () => "file2.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // First cy.get() call returns the sidebar mock (2 attachments)
+      // Second cy.get() call returns the email mock (same 2 attachments)
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach });
+      
+      // Since both sidebar and email contain the same number of attachments
+      // and the same file names, the validation should pass without throwing any error.
+      expect(() => ldEmailValidation.executeAction())
+        .not.toThrow("Attachment count mismatch.");
+    });
+
+    it("Should throw error when email does not contain all sidebar attachments", () => {
+
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding ONE attachment in the sidebar
+      // with the filename "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding ONE attachment in the email dialog,
+      // but with a DIFFERENT filename ("file2.pdf").
+      // Therefore, the email does not contain the sidebar attachment.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file2.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // First cy.get() call returns the sidebar mock
+      // Second cy.get() call returns the email mock
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach });
+      
+      // Since the email attachment list does NOT include "file1.pdf",
+      // the validation logic should fail and throw an error.
+      expect(() => ldEmailValidation.executeAction())
+        .toThrow();
+    });
+
+    it("Should log success when validation passes", () => {
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding ONE attachment in the sidebar
+      // with filename "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding the SAME attachment
+      // in the email dialog ("file1.pdf"), ensuring validation will pass.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the checkbox validation step.
+      // This simulates Cypress locating the attachment checkbox
+      // and executing the .each() callback to verify it exists
+      const LaCheckboxEach = jest.fn((idCheckboxElement:any) => {
+        idCheckboxElement({});
+      });
+
+      // First cy.get() call → sidebar attachments
+      // Second cy.get() call → email attachments
+      // Third cy.get() call → checkbox elements
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach })
+        .mockReturnValueOnce({ each: LaCheckboxEach });
+    
+        // Execute the validation action.
+        // Since attachments match and validation passes,
+        // the success log should be triggered.
+        ldEmailValidation.executeAction();
+    
+      expect(cyMock.log).toHaveBeenCalledWith(
+        "Email attachment validation successful."
+      );
+    });
+
+    it("Should validate checkbox exists for selecting attachment", () => {
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding one attachment in the sidebar
+      // and invoking the .each() callback with a fake element
+      // whose title attribute returns "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding the same attachment
+      // in the email dialog so that validation logic passes.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the checkbox selection step.
+      // This simulates Cypress locating a checkbox element
+      // and executing the .each() callback once.
+      const LaCheckboxEach = jest.fn((idCheckboxElement:any) => {
+        idCheckboxElement({});
+      });
+    
+      // First cy.get() → sidebar attachments
+      // Second cy.get() → email attachments
+      // Third cy.get() → checkbox elements
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach })
+        .mockReturnValueOnce({ each: LaCheckboxEach });
+    
+      // Execute the validation action.
+      // Since attachments match, the checkbox validation step runs.
+      ldEmailValidation.executeAction();
+
+      // Verify that cy.wrap() was called,
+      // which confirms the checkbox was processed
+      // for existence and enabled-state validation.
+      expect(cyMock.wrap).toHaveBeenCalled();
+    });
+
+    it("Should validate checkbox in not disabled", () => {
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding one attachment in the sidebar
+      // and invoking the .each() callback with a fake element
+      // whose title attribute returns "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding the same attachment
+      // in the email dialog so that validation logic passes.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the checkbox selection step.
+      // This simulates Cypress locating a checkbox element
+      // and executing the .each() callback once.
+      const LaCheckboxEach = jest.fn((idCheckboxElement:any) => {
+        idCheckboxElement({});
+      });
+    
+      // First cy.get() → sidebar attachments
+      // Second cy.get() → email attachments
+      // Third cy.get() → checkbox elements
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach })
+        .mockReturnValueOnce({ each: LaCheckboxEach });
+    
+      // Execute the validation action.
+      // Since attachments match, the checkbox validation step runs.
+      ldEmailValidation.executeAction();
+
+      // Assert checkbox existence validation was triggered.
+      // This confirms checkbox is not disabled.
+      expect(cyChain.and).toHaveBeenCalledWith("not.be.disabled");
+    });
+
+    it("Should throw error when checkbox is disabled", () => {
+      // Mock the sidebar attachment list.
+      // This simulates Cypress finding one attachment in the sidebar
+      // and invoking the .each() callback with a fake element
+      // whose title attribute returns "file1.pdf".
+      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
+        idSidebarElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the email attachment list.
+      // This simulates Cypress finding the same attachment
+      // in the email dialog so that validation logic passes.
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "file1.pdf" });
+        return { then: (fn: Function) => fn() };
+      });
+    
+      // Mock the checkbox selection step.
+      // This simulates Cypress locating a checkbox element
+      // and executing the .each() callback once.
+      const LaCheckboxEach = jest.fn((idCheckboxElement:any) => {
+        idCheckboxElement({});
+      });
+    
+      // Here we override the Cypress chain method `.and()`.
+      // When the validation checks for "not.be.disabled",
+      // we force it to throw an error.
+      // This simulates the real-world case where the checkbox
+      // is disabled and cannot be interacted with.
+      // Returning cyChain maintains chainability for other conditions.
+      cyChain.and.mockImplementation((condition: string) => {
+        if (condition === "not.be.disabled") {
+          throw new Error("Checkbox is disabled.");
+        }
+        return cyChain;
+      });
+      // First cy.get() → sidebar attachments
+      // Second cy.get() → email attachments
+      // Third cy.get() → checkbox elements
+      (cyMock.get as jest.Mock)
+        .mockReturnValueOnce({ each: LaSidebarEach })
+        .mockReturnValueOnce({ each: LaEmailEach })
+        .mockReturnValueOnce({ each: LaCheckboxEach });
+    
+      // Assert checkbox existence validation was triggered.
+      // This confirms checkbox is not disabled.
+      expect(() => ldEmailValidation.executeAction()).toThrow("Checkbox is disabled.");
+    });
+  })
 });
