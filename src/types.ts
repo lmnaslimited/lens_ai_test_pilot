@@ -142,6 +142,7 @@ export type TtestLabScript = {
 
 export interface ifTestContext {
     currentScript: any;
+    currentScriptRowIdx: number; 
     createdDocnames: string[];
     storeDocname: { idx: number; docname: string }[];
     createdDocsByIndex: { [key: number]: string }[];
