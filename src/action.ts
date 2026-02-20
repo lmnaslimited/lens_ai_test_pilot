@@ -522,46 +522,170 @@ export class clActionClickInnerGroupButton extends clAction {
  * attachments are present in email attachment list */
 export class clActionValidateEmailAttachments extends clAction {
     executeAction(): void {
-        // Array to store attachment names collected from the sidebar
+        // Array to store attachment names from Sidebar
         const LaSidebarAttachments: string[] = [];
-        // Array to store attachment names collected from the Email
+        // Array to store attachment names from Email
         const LaEmailAttachments: string[] = [];
         cy.wait(fnGetDelay("medium"));
-        // STEP 1: Collect Sidebar Attachments 
-        // Selecting attachment links inside sidebar attachment section
+        // STEP 1: Collect Sidebar Attachments
+        // Select attachment links from sidebar and store title values
         cy.get('ul.form-attachments li.attachment-row a[title]')
             .each(($el) => {
-                // Extract attachment name from title attribute 
                 const Ltext = $el.attr("title")?.trim() || "";
-                // Push each attachment name into sidebar array
                 LaSidebarAttachments.push(Ltext);
             })
             .then(() => {
-                // STEP 2: Collect Email Attachment List
-                // Selecting attachment labels shown inside Email "Select Attachments" section
+                // STEP 2: Collect Email Attachments
+                // Select attachment labels from email "Select Attachments" section
                 cy.get('[data-fieldname="select_attachments"] .attach-list label[title]')
                     .each(($el) => {
-                        // Extract attachment name from title attribute
                         const Ltext = $el.attr("title")?.trim() || "";
-                        // Push each email attachment name into email array
                         LaEmailAttachments.push(Ltext);
                     })
                     .then(() => {
-                        // STEP 3:Validate that all sidebar attachments are present in email attachment list
-                        // (Duplicates in email are allowed; only presence is validated)
+                        // STEP 3: Validate all sidebar attachments are present in email
+                        // (Duplicates in email are allowed, only presence is checked)
                         expect(LaEmailAttachments)
                             .to.include.members(LaSidebarAttachments);
-                        // STEP 4: Ensure each attachment checkbox is present and editable by user
+                        // STEP 4: Validate attachment checkboxes exist and are enabled
                         cy.get('[data-fieldname="select_attachments"] .attach-list input[type="checkbox"]')
                             .each(($checkbox) => {
-                                // Validate checkbox exists in DOM and is not disabled
-                                // Confirms user has permission to select/deselect attachment
                                 cy.wrap($checkbox)
                                     .should('exist')
                                     .and('not.be.disabled');
                             });
-
+                        cy.log("Attachment validation passed successfully");
                     });
+            });
+    }
+}
+
+
+
+/**
+ * Action Class: clActionValidateAlert
+ *
+ * Purpose:
+ * Validates Frappe alert (toast) behavior based on test configuration data.
+ *
+ * Functional Behavior:
+ * 1. Reads alert configuration from the first actionData row:
+ *    - message     → Expected alert text
+ *    - value       → Expected CSS class (color identifier)
+ *    - description → Expected screen position (top-right, bottom-left, etc.)
+ *    - is_hidden   → Flag to validate alert absence
+ *
+ * 2. If is_hidden = true:
+ *    - Verifies that no alert containing the expected message exists.
+ *
+ * 3. If is_hidden = false:
+ *    - Verifies alert is visible.
+ *    - Validates:
+ *        ✔ Message text matches exactly
+ *        ✔ Alert element's class list contains expected color value
+ *        ✔ Alert position matches computed CSS placement
+ *
+ * 4. Throws a detailed error if any mismatch occurs.
+ *    Otherwise logs successful validation.
+ */
+export class clActionValidateAlert extends clAction {
+
+    executeAction(): void {
+        // Read first action row from test data
+        this.actionRow = this.actionData[0];
+
+        // Normalize expected alert configuration from test data
+        const LdConfig = {
+            message: this.actionRow.message?.trim(),    // Expected alert message
+            color: this.actionRow.value?.trim()?.toLowerCase(),  // Expected CSS class identifier (color)
+            position: this.actionRow.description?.trim()?.replace(/"/g, '')?.toLowerCase(),  // Expected toast position
+            isHidden: this.actionRow.is_hidden  // Flag to validate absence instead of presence
+        };
+        // If alert is expected to be hidden, validate non-existence
+        if (LdConfig.isHidden) {
+            cy.contains('.alert-title-container', LdConfig.message, { timeout: 2000 })
+                .should('not.exist');
+
+            cy.log("Alert absence validated successfully.");
+            return;
+        }
+
+        // Fail early if message is not configured for presence validation
+        if (!LdConfig.message) {
+            throw new Error("Alert validation failed: Expected message not configured.");
+        }
+        // Locate alert by its title text and validate visibility
+        cy.contains('.alert-title-container', LdConfig.message, { timeout: 10000 })
+            .should('be.visible')
+            .then(($title: JQuery<HTMLElement>) => {
+
+                // Navigate to main alert root container
+                const $alertRoot = $title
+                    .closest('.alert-message-container')
+                    .parent();
+
+                // Ensure alert container exists in DOM
+                if (!$alertRoot.length) {
+                    throw new Error('Alert root container (.frappe-alert) not found.');
+                }
+
+                // Capture full class list for color validation
+                const LaClassList = $alertRoot.attr('class') || "";
+
+                // Extract actual alert properties from DOM
+                const LdActual = {
+                    message: $alertRoot.find('.alert-title-container').text().trim(), // Actual message text
+                    classList: LaClassList,                                           // Full class attribute string
+                    position: (() => {
+                        // Determine alert placement using computed CSS values
+                        const LTop = $alertRoot.css('top');
+                        const LBottom = $alertRoot.css('bottom');
+                        const LLeft = $alertRoot.css('left');
+                        const LRight = $alertRoot.css('right');
+
+                        if (LBottom !== 'auto' && LRight !== 'auto') return 'bottom-right';
+                        if (LBottom !== 'auto' && LLeft !== 'auto') return 'bottom-left';
+                        if (LTop !== 'auto' && LRight !== 'auto') return 'top-right';
+                        if (LTop !== 'auto' && LLeft !== 'auto') return 'top-left';
+
+                        return 'unknown';
+                    })()
+                };
+
+                // Log actual values for debugging and traceability
+                cy.log(`Actual Message: ${LdActual.message}`);
+                cy.log(`Actual Color: ${LdActual.classList}`);
+                cy.log(`Actual Position: ${LdActual.position}`);
+                const LaErrors: string[] = [];
+
+                // Validate message equality
+                if (LdConfig.message && LdConfig.message !== LdActual.message) {
+                    LaErrors.push(
+                        `Message Mismatch → Expected: "${LdConfig.message}" | Actual: "${LdActual.message}"`
+                    );
+                }
+
+                // Validate that expected color value exists in alert class list
+                if (LdConfig.color && !LdActual.classList.includes(LdConfig.color)) {
+                    LaErrors.push(
+                        `Color Mismatch → Expected class containing: "${LdConfig.color}" | Actual Classes: "${LdActual.classList}"`
+                    );
+                }
+
+                // Validate calculated screen position
+                if (LdConfig.position && LdConfig.position !== LdActual.position) {
+                    LaErrors.push(
+                        `Position Mismatch → Expected: "${LdConfig.position}" | Actual: "${LdActual.position}"`
+                    );
+                }
+
+                // If any validation errors exist, fail with detailed report
+                if (LaErrors.length) {
+                    throw new Error("Alert Validation Failed:\n" + LaErrors.join("\n"));
+                }
+
+                // Success log if all validations pass
+                cy.log("Alert validation passed successfully.");
             });
     }
 }
@@ -637,7 +761,8 @@ export class clActionFactory {
             "Validate Attachment": clActionAttachments,
             "Validate Assignee": clActionAssignments,
             "Validate Breadcrumbs": clActionBreadcrumbs,
-            "Validate Email Attachments": clActionValidateEmailAttachments
+            "Validate Email Attachments": clActionValidateEmailAttachments,
+            "Validate Alert": clActionValidateAlert
         };
 
     /** Action mentioned in the Test Script Header fields */
