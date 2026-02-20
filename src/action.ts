@@ -518,6 +518,39 @@ export class clActionClickInnerGroupButton extends clAction {
         cy.wait(fnGetDelay("long"));
     }
 }
+
+export class clActionValidateButton extends clAction {
+    executeAction(): void {
+        this.actionRow = this.actionData[0];
+
+        const {
+            value: LbuttonLabel,
+            is_hidden: LIshidden,
+            is_read_only: LReadonly
+        } = this.actionRow;
+
+        cy.wait(fnGetDelay("medium"));
+
+        if (LIshidden) {
+            cy.contains('button, a', LbuttonLabel)
+              .should("not.exist");
+            return;
+        }
+
+        cy.contains('button, a', LbuttonLabel)
+          .should("exist")
+          .and("be.visible");
+
+        if (LReadonly) {
+            cy.contains('button, a', LbuttonLabel)
+              .should("have.attr", "disabled");
+        } else {
+            cy.contains('button, a', LbuttonLabel)
+              .should("not.have.attr", "disabled");
+        }
+    }
+}
+
 /** @Class clActionValidateEmailAttachments Validate that all sidebar 
  * attachments are present in email attachment list */
 export class clActionValidateEmailAttachments extends clAction {
@@ -761,6 +794,7 @@ export class clActionFactory {
             "Validate Attachment": clActionAttachments,
             "Validate Assignee": clActionAssignments,
             "Validate Breadcrumbs": clActionBreadcrumbs,
+            "Button Visibility": clActionValidateButton,
             "Validate Email Attachments": clActionValidateEmailAttachments,
             "Validate Alert": clActionValidateAlert
         };
