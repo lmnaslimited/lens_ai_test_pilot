@@ -48,6 +48,15 @@ export class clDataTypeData extends clDataType {
         if (this.action.actionRow.is_hidden) {
             return;
         }
+        // Special handling for null or undefined values to ensure the field is empty
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .invoke('val')
+                .should('be.empty');
+            return;
+        }
         if (this.action.actionRow.is_read_only) {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
             cy.get(this.getSelector()).should('exist').and('be.visible').and('have.text', this.action.actionRow.value);
