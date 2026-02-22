@@ -823,8 +823,17 @@ Purpose:
   // in the new email dialag
   describe("Test Suite for clActionValidateEmailAttachments", ()=>{
     let ldEmailValidation: clActionValidateEmailAttachments
+    
     beforeEach(()=>{
       jest.clearAllMocks();
+      // Modified the cypress mock
+      // done in parent beforeEach to accomodate chainable
+      // excution
+      cyChain.should = jest.fn().mockReturnThis()
+      cyChain.and = jest.fn().mockReturnThis()
+      
+      cyMock.wrap = jest.fn().mockReturnValue(cyChain);
+    
       ldEmailValidation = new clActionValidateEmailAttachments("Validate Email Attachments", laMockActionData)
     })
     it("Should Instantiate Email Vlaidation class when action is Validate Email Attachments", ()=>{
@@ -849,9 +858,10 @@ Purpose:
       // Mock the email attachment list.
       // This simulates Cypress finding NO attachments in the email dialog.
       // The .each() callback is never invoked, so the email attachment array remains empty.
-      const LaEmailEach = jest.fn(() => ({
-        then: (fn: Function) => fn()
-      }));
+      const LaEmailEach = jest.fn((idEmailElement:any) => {
+        idEmailElement({ attr: () => "" });
+        return {then: (fn: Function) => fn()}
+      });
 
       // First time cy.get() is called → return sidebar mock
       // Second time cy.get() is called → return email mock
@@ -864,7 +874,7 @@ Purpose:
       // Since the email has no attachments,
       // the executeAction() method should throw the expected error.
       expect(()=>ldEmailValidation.executeAction())
-        .toThrow("No email attachments found.");
+        .toThrow("Email does not contain all sidebar attachments.");
     });
 
     it("Should throw error when attachment count mismatch", () => {
@@ -897,7 +907,7 @@ Purpose:
       // does not match the number of email attachments (1),
       // the executeAction() method should throw "Attachment count mismatch."
       expect(() => ldEmailValidation.executeAction())
-        .toThrow("Attachment count mismatch.");
+        .toThrow("Email Attachment count mismatch.");
     });
 
     it("Should pass when attachment count are same", () => {
@@ -922,16 +932,21 @@ Purpose:
         return { then: (fn: Function) => fn() };
       });
     
+      const LaCheckboxEach = jest.fn((idCheckboxElement: any) => {
+        idCheckboxElement({});   // simulate one checkbox
+        return { then: (fn: Function) => fn() }; // keep Cypress chain
+      });
       // First cy.get() call returns the sidebar mock (2 attachments)
       // Second cy.get() call returns the email mock (same 2 attachments)
       (cyMock.get as jest.Mock)
         .mockReturnValueOnce({ each: LaSidebarEach })
-        .mockReturnValueOnce({ each: LaEmailEach });
+        .mockReturnValueOnce({ each: LaEmailEach })
+        .mockReturnValueOnce({ each: LaCheckboxEach });
       
       // Since both sidebar and email contain the same number of attachments
       // and the same file names, the validation should pass without throwing any error.
       expect(() => ldEmailValidation.executeAction())
-        .not.toThrow("Attachment count mismatch.");
+        .not.toThrow("Email Attachment count mismatch.");
     });
 
     it("Should throw error when email does not contain all sidebar attachments", () => {
@@ -962,7 +977,7 @@ Purpose:
       // Since the email attachment list does NOT include "file1.pdf",
       // the validation logic should fail and throw an error.
       expect(() => ldEmailValidation.executeAction())
-        .toThrow();
+        .toThrow("Email does not contain all sidebar attachments.");
     });
 
     it("Should log success when validation passes", () => {
@@ -1073,6 +1088,7 @@ Purpose:
       // and executing the .each() callback once.
       const LaCheckboxEach = jest.fn((idCheckboxElement:any) => {
         idCheckboxElement({});
+        return { then: (fn: Function) => fn() };
       });
     
       // First cy.get() → sidebar attachments

@@ -209,7 +209,7 @@ export class clActionSave extends clAction {
                 cy.log(this.lActionMessage);
                 cy.wait(fnGetDelay("short"));
             } else {
-                throw new Error(`No visible ${this.lActionMessage} (.primary-action) found in DOM.`);
+                throw new Error(`No visible ${this.action} (.primary-action) found in DOM.`);
             }
         });
     }
@@ -578,8 +578,15 @@ export class clActionValidateEmailAttachments extends clAction {
                     .then(() => {
                         // STEP 3: Validate all sidebar attachments are present in email
                         // (Duplicates in email are allowed, only presence is checked)
-                        expect(LaEmailAttachments)
-                            .to.include.members(LaSidebarAttachments);
+                        // commented out because this cant be 
+                        // tested in jest
+                        // expect(LaEmailAttachments)
+                        //     .to.include.members(LaSidebarAttachments);
+                        if (!LaSidebarAttachments.every(file =>
+                            LaEmailAttachments.includes(file)
+                          )) {
+                            throw new Error("Email does not contain all sidebar attachments.");
+                          }
                         // STEP 4: Validate attachment checkboxes exist and are enabled
                         cy.get('[data-fieldname="select_attachments"] .attach-list input[type="checkbox"]')
                             .each(($checkbox) => {
@@ -587,7 +594,7 @@ export class clActionValidateEmailAttachments extends clAction {
                                     .should('exist')
                                     .and('not.be.disabled');
                             });
-                        cy.log("Attachment validation passed successfully");
+                        cy.log("Email attachment validation successful.");
                     });
             });
     }
