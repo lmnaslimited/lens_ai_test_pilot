@@ -600,8 +600,6 @@ export class clActionValidateEmailAttachments extends clAction {
     }
 }
 
-
-
 /**
  * Action Class: clActionValidateAlert
  *
@@ -730,6 +728,138 @@ export class clActionValidateAlert extends clAction {
     }
 }
 
+export class clActionApiGet extends clAction {
+
+    executeAction(): void {
+
+        // Definition row (POS 20)
+        this.actionRow = this.actionData[0];
+
+        if (!this.actionRow) {
+            throw new Error("API GET: No action row provided.");
+        }
+
+        // Get targetHost from Cypress config
+        const targetHost = Cypress.env("TARGET_URL");
+
+        if (!targetHost) {
+            throw new Error("API GET: Cypress baseUrl (targetHost) not configured.");
+        }
+
+        // 2️⃣ Build endpoint path from value field
+        let path = this.actionRow.value?.trim();
+
+        if (!path) {
+            throw new Error("API GET: Endpoint missing in 'value' field.");
+        }
+
+        // Ensure path starts with /
+        if (!path.startsWith("/")) {
+            path = `/${path}`;
+        }
+
+        // 3️⃣ Append query params from menus (if provided)
+        if (this.actionRow.menus && this.actionRow.menus.trim() !== "") {
+            const query = this.actionRow.menus.trim();
+
+            if (!path.includes("?")) {
+                path = `${path}?${query}`;
+            } else {
+                path = `${path}&${query}`;
+            }
+        }
+
+        // 4️⃣ Construct full endpoint
+        const endpoint = `${targetHost.replace(/\/$/, "")}${path}`;
+
+        cy.log(`Executing API GET: ${endpoint}`);
+
+        // 5️⃣ Build Expected Payload from remaining rows
+        const expectedPayload: Record<string, any> = {};
+
+        this.actionData.forEach((row, index) => {
+            if (index === 0) return; // Skip API definition row
+            if (!row.field_name) return;
+
+            expectedPayload[row.field_name] = row.value;
+        });
+
+        // 6️⃣ Execute API Request
+        cy.request({
+            method: "GET",
+            url: endpoint,
+            failOnStatusCode: false
+        }).then((response: Cypress.Response<any>) => {
+
+            // Validate HTTP Status
+            if (response.status !== 200) {
+                throw new Error(`
+API GET Failed
+----------------------------------
+Endpoint: ${endpoint}
+Status Code: ${response.status}
+Response Body: ${JSON.stringify(response.body, null, 2)}
+                `);
+            }
+
+            if (!response.body || !response.body.data) {
+                throw new Error(`
+API GET: Invalid response structure.
+Full Response: ${JSON.stringify(response.body, null, 2)}
+                `);
+            }
+
+            // Handle array vs single document
+            let responseData;
+
+            if (Array.isArray(response.body.data)) {
+
+                if (response.body.data.length === 0) {
+                    throw new Error(`
+API GET: Filter returned empty result set.
+Endpoint: ${endpoint}
+                    `);
+                }
+
+                responseData = response.body.data[0];
+
+            } else {
+                responseData = response.body.data;
+            }
+
+            // Field Validation
+            Object.entries(expectedPayload).forEach(([field, expectedValue]) => {
+
+                if (!(field in responseData)) {
+                    throw new Error(`
+API Validation Failed
+----------------------------------
+Field Missing: ${field}
+Available Keys: ${Object.keys(responseData).join(", ")}
+                    `);
+                }
+
+                const actualValue = responseData[field];
+
+                if (actualValue != expectedValue) {
+                    throw new Error(`
+API Validation Failed
+----------------------------------
+Field: ${field}
+Expected: ${expectedValue}
+Actual: ${actualValue}
+Endpoint: ${endpoint}
+                    `);
+                }
+
+                cy.log(`✔ ${field} validated successfully`);
+            });
+
+            cy.log("API GET Validation Completed Successfully");
+        });
+    }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
 // GET, PUT, POST on API test
@@ -803,7 +933,8 @@ export class clActionFactory {
             "Validate Breadcrumbs": clActionBreadcrumbs,
             "Button Visibility": clActionValidateButton,
             "Validate Email Attachments": clActionValidateEmailAttachments,
-            "Validate Alert": clActionValidateAlert
+            "Validate Alert": clActionValidateAlert,
+            "API GET": clActionApiGet,
         };
 
     /** Action mentioned in the Test Script Header fields */
