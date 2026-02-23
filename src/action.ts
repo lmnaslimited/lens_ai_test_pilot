@@ -730,139 +730,172 @@ export class clActionValidateAlert extends clAction {
 
 export class clActionApiGet extends clAction {
 
-    executeAction(): void {
-
-        // Definition row (POS 20)
-        this.actionRow = this.actionData[0];
-
-        if (!this.actionRow) {
-            throw new Error("API GET: No action row provided.");
-        }
-
-        // Get targetHost from Cypress config
-        const targetHost = Cypress.env("TARGET_URL");
-
-        if (!targetHost) {
-            throw new Error("API GET: Cypress baseUrl (targetHost) not configured.");
-        }
-
-        // 2️⃣ Build endpoint path from value field
-        let path = this.actionRow.value?.trim();
-
-        if (!path) {
-            throw new Error("API GET: Endpoint missing in 'value' field.");
-        }
-
-        // Ensure path starts with /
-        if (!path.startsWith("/")) {
-            path = `/${path}`;
-        }
-
-        // 3️⃣ Append query params from menus (if provided)
-        if (this.actionRow.menus && this.actionRow.menus.trim() !== "") {
-            const query = this.actionRow.menus.trim();
-
-            if (!path.includes("?")) {
-                path = `${path}?${query}`;
-            } else {
-                path = `${path}&${query}`;
-            }
-        }
-
-        // 4️⃣ Construct full endpoint
-        const endpoint = `${targetHost.replace(/\/$/, "")}${path}`;
-
-        cy.log(`Executing API GET: ${endpoint}`);
-
-        // 5️⃣ Build Expected Payload from remaining rows
-        const expectedPayload: Record<string, any> = {};
-
-        this.actionData.forEach((row, index) => {
-            if (index === 0) return; // Skip API definition row
-            if (!row.field_name) return;
-
-            expectedPayload[row.field_name] = row.value;
-        });
-
-        // 6️⃣ Execute API Request
-        cy.request({
-            method: "GET",
-            url: endpoint,
-            failOnStatusCode: false
-        }).then((response: Cypress.Response<any>) => {
-
-            // Validate HTTP Status
-            if (response.status !== 200) {
-                throw new Error(`
-API GET Failed
-----------------------------------
-Endpoint: ${endpoint}
-Status Code: ${response.status}
-Response Body: ${JSON.stringify(response.body, null, 2)}
-                `);
-            }
-
-            if (!response.body || !response.body.data) {
-                throw new Error(`
-API GET: Invalid response structure.
-Full Response: ${JSON.stringify(response.body, null, 2)}
-                `);
-            }
-
-            // Handle array vs single document
-            let responseData;
-
-            if (Array.isArray(response.body.data)) {
-
-                if (response.body.data.length === 0) {
-                    throw new Error(`
-API GET: Filter returned empty result set.
-Endpoint: ${endpoint}
-                    `);
-                }
-
-                responseData = response.body.data[0];
-
-            } else {
-                responseData = response.body.data;
-            }
-
-            // Field Validation
-            Object.entries(expectedPayload).forEach(([field, expectedValue]) => {
-
-                if (!(field in responseData)) {
-                    throw new Error(`
-API Validation Failed
-----------------------------------
-Field Missing: ${field}
-Available Keys: ${Object.keys(responseData).join(", ")}
-                    `);
-                }
-
-                const actualValue = responseData[field];
-
-                if (actualValue != expectedValue) {
-                    throw new Error(`
-API Validation Failed
-----------------------------------
-Field: ${field}
-Expected: ${expectedValue}
-Actual: ${actualValue}
-Endpoint: ${endpoint}
-                    `);
-                }
-
-                cy.log(`✔ ${field} validated successfully`);
-            });
-
-            cy.log("API GET Validation Completed Successfully");
-        });
+    protected getMethod(): Cypress.HttpMethod {
+      return "GET";
     }
-}
+  
+    protected getHeaders(): Record<string, any> {
+        return {};
+    }
 
+    protected getValidStatusCodes(): number[] {
+      return [200];
+    }
+
+    protected shouldValidateResponse(): boolean {
+        return true;
+      }
+  
+    protected buildRequestBody(): Record<string, any> | undefined {
+      return undefined;
+    }
+  
+    protected transformDataRow(): Record<string, any> {
+        return this.actionData
+        .slice(1)
+        .filter(row => row.field_name)
+        .reduce((acc, row) => {
+          acc[row.field_name] = row.value;
+          return acc;
+        }, {} as Record<string, any>);
+    }
+  
+    protected buildEndpoint(): string {
+      const LTargetHost = Cypress.env("TARGET_URL");
+  
+      if (!LTargetHost) {
+        throw new Error("API GET: TARGET_URL not configured.");
+      }
+  
+      let lPath = this.actionRow.value?.trim();
+  
+      if (!lPath) {
+        throw new Error("API GET: Endpoint missing in 'value' field.");
+      }
+  
+      if (!lPath.startsWith("/")) {
+        lPath = `/${lPath}`;
+      }
+  
+      if (this.actionRow.menus && this.actionRow.menus.trim() !== "") {
+        const query = this.actionRow.menus.trim();
+        lPath += lPath.includes("?") ? `&${query}` : `?${query}`;
+      }
+      return `${LTargetHost.replace(/\/$/, "")}${lPath}`;
+    }
+  
+    protected validateResponse(
+      idResponse: Cypress.Response<any>,
+      iEndpoint: string,
+      idExpectedPayload: Record<string, any>
+    ): void {
+  
+      if (!idResponse.body || !idResponse.body.data) {
+        throw new Error(`
+            Invalid response structure.
+            Full Response: ${JSON.stringify(idResponse.body, null, 2)}
+        `);
+      }
+  
+      let ldResponseData: any;
+  
+      if (Array.isArray(idResponse.body.data)) {
+        if (idResponse.body.data.length === 0) {
+          throw new Error(`Empty result set. Endpoint: ${iEndpoint}`);
+        }
+        ldResponseData = idResponse.body.data[0];
+      } else {
+        ldResponseData = idResponse.body.data;
+      }
+  
+      Object.entries(idExpectedPayload).forEach(([field, expectedValue]) => {
+  
+        if (!(field in ldResponseData)) {
+          throw new Error(`
+            Field Missing: ${field}
+            Available Keys: ${Object.keys(ldResponseData).join(", ")}
+          `);
+        }
+  
+        const LActualValue = ldResponseData[field];
+  
+        if (LActualValue != expectedValue) {
+          throw new Error(`
+            Validation Failed
+            Field: ${field}
+            Expected: ${expectedValue}
+            Actual: ${LActualValue}
+            Endpoint: ${iEndpoint}
+          `);
+        }
+  
+        cy.log(`${field} validated`);
+      });
+    }
+  
+    executeAction(): void {
+      this.actionRow = this.actionData[0];
+      if (!this.actionRow) {
+        throw new Error("API Action: No action row provided.");
+      }
+  
+      const LMethod = this.getMethod();
+      const LEndpoint = this.buildEndpoint();
+     
+      cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
+
+      cy.request({
+        method: LMethod,
+        url: LEndpoint,
+        headers: this.getHeaders(),
+        body: this.buildRequestBody(),
+        failOnStatusCode: false,
+      }).then((response: Cypress.Response<any>) => {
+  
+        if (!this.getValidStatusCodes().includes(response.status)) {
+          throw new Error(`
+            API ${LMethod} Failed
+            Status Code: ${response.status}
+            Response Body: ${JSON.stringify(response.body, null, 2)}
+          `);
+        }
+  
+        if (this.shouldValidateResponse()) {
+            this.validateResponse(response, LEndpoint, this.transformDataRow());
+          }
+  
+        cy.log(`API ${LMethod} Completed Successfully`);
+      });
+    }
+  }
+
+  export class clActionApiPut extends clActionApiGet{
+    protected getMethod(): Cypress.HttpMethod {
+        return "PUT";
+    }
+    
+    protected getValidStatusCodes(): number[] {
+        return [200, 201];
+      }
+    
+    protected shouldValidateResponse(): boolean {
+        return false; // Skip validation completely
+    }
+
+    protected getHeaders(): Record<string, any> {
+        return {
+          Authorization: Cypress.env("HOST_KEY"),
+          "Content-Type": "application/json",
+        };
+    }
+
+      protected buildRequestBody(): Record<string, any> {
+        return this.transformDataRow();
+      }
+  }
+  
 // abstract class for Test SCript Header level
-// to determin Create or UPdate on UI test and
-// GET, PUT, POST on API test
+// to determin Create or UPdate
 abstract class clTestAction implements ifTestAction {
     testScripts: TtestHeaderData;
     doctype: string
@@ -935,6 +968,7 @@ export class clActionFactory {
             "Validate Email Attachments": clActionValidateEmailAttachments,
             "Validate Alert": clActionValidateAlert,
             "API GET": clActionApiGet,
+            "API PUT": clActionApiPut
         };
 
     /** Action mentioned in the Test Script Header fields */
