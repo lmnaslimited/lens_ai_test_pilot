@@ -2,7 +2,7 @@ import { createDefaultContext } from "../../src/models/testContext";
 import { clAuthService } from "../../src/services/authService";
 import { clLogCaptureService } from "../../src/services/logCaptureService";
 import { clReportService } from "../../src/services/reportService";
-import { clTestRunnerFactory } from "../../src/services/testScript";
+import { clTestRunnerUiService } from "../../src/services/testScript";
 import { ifTestRunner } from "../../src/types";
 
 const LdContext = createDefaultContext(); //initialize the default test context
@@ -39,12 +39,16 @@ describe("Automated Test Run", () => {
   // become separate IT
   LdScripts.forEach((ldScript, iIndex) => {
     let ldRunner: ifTestRunner
-    // Determining Test Type "UI / API"
-    ldRunner = clTestRunnerFactory.create(ldScript, LdContext,
-      LdAuthService, LdReportService, LTargetUrl,
-      LdTestLab, LdMasterData, LdLoginData
-    );
     it(`running ${ldScript.name}`, () => {
+      ldRunner = new clTestRunnerUiService(
+        LdContext,
+        LdAuthService,
+        LdReportService,
+        LTargetUrl,
+        LdTestLab,
+        LdMasterData,
+        LdLoginData
+      );
       ldRunner.executeScript(ldScript);
     });
 
