@@ -751,13 +751,34 @@ export class clActionApiGet extends clAction {
     }
   
     protected transformDataRow(): Record<string, any> {
-        return this.actionData
-        .slice(1)
-        .filter(row => row.field_name)
-        .reduce((acc, row) => {
-          acc[row.field_name] = row.value;
-          return acc;
-        }, {} as Record<string, any>);
+        const dataRows = this.actionData.slice(1);
+
+        // Top-level fields
+        const normalFields = dataRows
+            .filter(row => !row.is_child && row.field_name)
+            .reduce((acc, row) => ({ ...acc, [row.field_name]: row.value }), {});
+
+        // Child table fields grouped by child_name and child_index
+        const childTables = dataRows
+            .filter(row => row.is_child && row.field_name)
+            .reduce<Record<string, Record<number, Record<string, any>>>>((acc, row) => {
+            const childGroup = acc[row.child_name] || {};
+            const rowIndex = row.child_index || 0;
+
+            childGroup[rowIndex] = { ...(childGroup[rowIndex] || {}), [row.field_name]: row.value };
+            acc[row.child_name] = childGroup;
+            return acc;
+            }, {});
+
+        // Convert grouped child tables into arrays
+        const formattedChildTables = Object.fromEntries(
+            Object.entries(childTables).map(([childName, rows]) => [
+            childName,
+            Object.values(rows)
+            ])
+        );
+
+        return { ...normalFields, ...formattedChildTables };
     }
   
     protected buildEndpoint(): string {
@@ -839,19 +860,19 @@ export class clActionApiGet extends clAction {
         throw new Error("API Action: No action row provided.");
       }
   
-      const LMethod = this.getMethod();
-      const LEndpoint = this.buildEndpoint();
-     
-      cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
-
-      cy.request({
-        method: LMethod,
-        url: LEndpoint,
-        headers: this.getHeaders(),
-        body: this.buildRequestBody(),
-        failOnStatusCode: false,
-      }).then((response: Cypress.Response<any>) => {
-  
+        const LMethod = this.getMethod(); 
+        const LEndpoint = this.buildEndpoint();  
+         
+        // const expectedPayload = this.buildExpectedPayload(); 
+        cy.log(`Executing API ${LMethod}: ${LEndpoint}`); 
+        cy.request({ 
+            method: LMethod, 
+            url: LEndpoint, 
+            headers: this.getHeaders(), 
+            body: this.buildRequestBody(), 
+            failOnStatusCode: false, })
+        .then((response: Cypress.Response<any>) => {
+        
         if (!this.getValidStatusCodes().includes(response.status)) {
           throw new Error(`
             API ${LMethod} Failed
@@ -879,19 +900,21 @@ export class clActionApiGet extends clAction {
       }
     
     protected shouldValidateResponse(): boolean {
-        return false; // Skip validation completely
+        return false;
     }
 
     protected getHeaders(): Record<string, any> {
         return {
-          Authorization: Cypress.env("HOST_KEY"),
+          "Authorization": Cypress.env("TARGET_KEY"),
+          "Cookie":
+            "full_name=Guest; sid=Guest; system_user=no; user_id=Guest; user_image=",
           "Content-Type": "application/json",
         };
     }
 
-      protected buildRequestBody(): Record<string, any> {
+    protected buildRequestBody(): Record<string, any> {
         return this.transformDataRow();
-      }
+    }
   }
   
 // abstract class for Test SCript Header level
