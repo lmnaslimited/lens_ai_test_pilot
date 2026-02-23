@@ -729,136 +729,239 @@ export class clActionValidateAlert extends clAction {
 }
 
 export class clActionApiGet extends clAction {
-
-    executeAction(): void {
-
-        // Definition row (POS 20)
-        this.actionRow = this.actionData[0];
-
-        if (!this.actionRow) {
-            throw new Error("API GET: No action row provided.");
-        }
-
-        // Get targetHost from Cypress config
-        const targetHost = Cypress.env("TARGET_URL");
-
-        if (!targetHost) {
-            throw new Error("API GET: Cypress baseUrl (targetHost) not configured.");
-        }
-
-        // 2️⃣ Build endpoint path from value field
-        let path = this.actionRow.value?.trim();
-
-        if (!path) {
-            throw new Error("API GET: Endpoint missing in 'value' field.");
-        }
-
-        // Ensure path starts with /
-        if (!path.startsWith("/")) {
-            path = `/${path}`;
-        }
-
-        // 3️⃣ Append query params from menus (if provided)
-        if (this.actionRow.menus && this.actionRow.menus.trim() !== "") {
-            const query = this.actionRow.menus.trim();
-
-            if (!path.includes("?")) {
-                path = `${path}?${query}`;
-            } else {
-                path = `${path}&${query}`;
-            }
-        }
-
-        // 4️⃣ Construct full endpoint
-        const endpoint = `${targetHost.replace(/\/$/, "")}${path}`;
-
-        cy.log(`Executing API GET: ${endpoint}`);
-
-        // 5️⃣ Build Expected Payload from remaining rows
-        const expectedPayload: Record<string, any> = {};
-
-        this.actionData.forEach((row, index) => {
-            if (index === 0) return; // Skip API definition row
-            if (!row.field_name) return;
-
-            expectedPayload[row.field_name] = row.value;
-        });
-
-        // 6️⃣ Execute API Request
-        cy.request({
-            method: "GET",
-            url: endpoint,
-            failOnStatusCode: false
-        }).then((response: Cypress.Response<any>) => {
-
-            // Validate HTTP Status
-            if (response.status !== 200) {
-                throw new Error(`
-API GET Failed
-----------------------------------
-Endpoint: ${endpoint}
-Status Code: ${response.status}
-Response Body: ${JSON.stringify(response.body, null, 2)}
-                `);
-            }
-
-            if (!response.body || !response.body.data) {
-                throw new Error(`
-API GET: Invalid response structure.
-Full Response: ${JSON.stringify(response.body, null, 2)}
-                `);
-            }
-
-            // Handle array vs single document
-            let responseData;
-
-            if (Array.isArray(response.body.data)) {
-
-                if (response.body.data.length === 0) {
-                    throw new Error(`
-API GET: Filter returned empty result set.
-Endpoint: ${endpoint}
-                    `);
-                }
-
-                responseData = response.body.data[0];
-
-            } else {
-                responseData = response.body.data;
-            }
-
-            // Field Validation
-            Object.entries(expectedPayload).forEach(([field, expectedValue]) => {
-
-                if (!(field in responseData)) {
-                    throw new Error(`
-API Validation Failed
-----------------------------------
-Field Missing: ${field}
-Available Keys: ${Object.keys(responseData).join(", ")}
-                    `);
-                }
-
-                const actualValue = responseData[field];
-
-                if (actualValue != expectedValue) {
-                    throw new Error(`
-API Validation Failed
-----------------------------------
-Field: ${field}
-Expected: ${expectedValue}
-Actual: ${actualValue}
-Endpoint: ${endpoint}
-                    `);
-                }
-
-                cy.log(`✔ ${field} validated successfully`);
-            });
-
-            cy.log("API GET Validation Completed Successfully");
-        });
+  
+    // Return HTTP method for this action
+    protected getMethod(): Cypress.HttpMethod {
+      return "GET";
     }
-}
+  
+    // Return request headers
+    protected getHeaders(): Record<string, any> {
+      return {};
+    }
+  
+    // Define valid HTTP status codes
+    protected getValidStatusCodes(): number[] {
+      return [200];
+    }
+  
+    // Control whether response validation should execute
+    protected shouldValidateResponse(): boolean {
+      return true;
+    }
+  
+    // Return request body (GET has no body)
+    protected buildRequestBody(): Record<string, any> | undefined {
+      return undefined;
+    }
+  
+    // Construct full endpoint URL using target host and path
+    protected buildEndpoint(): string {
+  
+      const LTargetHost = Cypress.env("TARGET_URL"); // Read base URL from env
+  
+      if (!LTargetHost) {
+        throw new Error("API GET: TARGET_URL not configured.");
+      }
+  
+      let lPath = this.actionRow.value?.trim(); // Read endpoint path from action row
+  
+      if (!lPath) {
+        throw new Error("API GET: Endpoint missing in 'value' field.");
+      }
+  
+      if (!lPath.startsWith("/")) {
+        lPath = `/${lPath}`;          // Ensure path starts with '/'
+      }
+  
+      const LQuery = this.actionRow.menus?.trim();  // Append query parameters if provided
+      if (LQuery) {
+        lPath += lPath.includes("?") ? `&${LQuery}` : `?${LQuery}`;
+      }
+  
+      return `${LTargetHost.replace(/\/$/, "")}${lPath}`; // Return final URL
+    }
+  
+    // Build expected response structure from action data
+    protected buildExpectedPayload(): {
+      LdFlatFields: Record<string, any>,
+      LdGroupedFields: Record<string, any[]>
+    } {
+  
+      const LdFlatFields: Record<string, any> = {};  // Store parent-level expected fields
+      const LdGroupedFields: Record<string, any[]> = {};  // Store child table expectations
+  
+      this.actionData.slice(1).forEach(row => {
+  
+        if (!row.field_name) return;  // Skip rows without field name
+  
+        const LChildIndex = row.child_index;
+        const LTableName = row.child_name;
+  
+        // Assign flat field (Parent Fields) expectation
+        if (!LChildIndex) {
+            LdFlatFields[row.field_name] = row.value;
+          return;
+        }
+  
+        // Initialize child table array if missing
+        if (!LdGroupedFields[LTableName]) {
+            LdGroupedFields[LTableName] = [];
+        }
+  
+        // Initialize child row object if missing
+        if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
+            LdGroupedFields[LTableName][LChildIndex - 1] = {};
+        }
+  
+        // Assign expected child field value
+        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = row.value;
+      });
+  
+      return { LdFlatFields, LdGroupedFields };
+    }
+  
+    // Validate API response against expected payload
+    protected validateResponse(
+      idResponse: Cypress.Response<any>,
+      iEndpoint: string
+    ): void {
+  
+        // Ensure response contains expected data structure
+      if (!idResponse.body || !idResponse.body.data) {
+        throw new Error(`
+  Invalid response structure.
+  Full Response: ${JSON.stringify(idResponse.body, null, 2)}
+        `);
+      }
+  
+      // Normalize response data (array or object)
+      const LdResponseData = Array.isArray(idResponse.body.data)
+        ? idResponse.body.data[0]
+        : idResponse.body.data;
+  
+      // Build expectations
+      const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
+  
+      this.validateFlatFields(LdResponseData, LdFlatFields, iEndpoint);
+      this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    }
+  
+    // Validate top-level (Parent Field) response fields
+    private validateFlatFields(
+      idResponseData: any,
+      idFlatFields: Record<string, any>,
+      iEndpoint: string
+    ): void {
+  
+      Object.entries(idFlatFields).forEach(([LField, LExpected]) => {
+  
+        if (!(LField in idResponseData)) {
+          throw new Error(`
+  Field Missing: ${LField}
+  Available Keys: ${Object.keys(idResponseData).join(", ")}
+          `);
+        }
+  
+        const LActual = idResponseData[LField];  // Extract actual value
+  
+        if (LActual != LExpected) {
+          throw new Error(`
+  Validation Failed
+  Field: ${LField}
+  Expected: ${LExpected}
+  Actual: ${LActual}
+  Endpoint: ${iEndpoint}
+          `);
+        }
+  
+        cy.log(`✔ ${LField} : ${LActual}`);
+      });
+    }
+  
+    // Validate child table response fields
+    private validateGroupedFields(
+      idResponseData: any,
+      idGroupedFields: Record<string, any[]>,
+      iEndpoint: string
+    ): void {
+  
+      Object.entries(idGroupedFields).forEach(([LTableName, LaExpectedRows]) => {
+  
+        const LaResponseArray = idResponseData[LTableName];  // Extract child table array
+  
+        if (!Array.isArray(LaResponseArray)) {
+          throw new Error(`Child Table Missing or Not Array: ${LTableName}`);
+        }
+  
+        LaExpectedRows.forEach((LdExpectedRow, LIndex) => {
+  
+          const LdActualRow = LaResponseArray[LIndex];  // Extract actual row
+  
+          if (!LdActualRow) {
+            throw new Error(`Missing row ${LIndex + 1} in ${LTableName}`);
+          }
+  
+          Object.entries(LdExpectedRow).forEach(([LField, LExpected]) => {
+  
+            if (LdActualRow[LField] != LExpected) {
+              throw new Error(`
+  Child Table Validation Failed
+  Table: ${LTableName}
+  Row: ${LIndex + 1}
+  Field: ${LField}
+  Expected: ${LExpected}
+  Actual: ${LdActualRow[LField]}
+  Endpoint: ${iEndpoint}
+              `);
+            }
+  
+            cy.log(`✔ ${LTableName}[${LIndex + 1}].${LField} : ${LdActualRow[LField]}`);
+          });
+        });
+      });
+    }
+  
+    // Execute API request and perform validation
+    executeAction(): void {
+      // Get first row as action configuration
+      this.actionRow = this.actionData[0];
+  
+      if (!this.actionRow) {
+        throw new Error("API Action: No action row provided.");
+      }
+  
+      const LMethod = this.getMethod();       // Resolve HTTP method
+      const LEndpoint = this.buildEndpoint(); // Build full endpoint URL
+  
+      cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
+  
+      cy.request({
+        method: LMethod,
+        url: LEndpoint,
+        headers: this.getHeaders(),      // Attach headers
+        body: this.buildRequestBody(),   // Attach request body if any
+        failOnStatusCode: false,         // Manually handle status validation
+      }).then((idResponse: Cypress.Response<any>) => {
+  
+        // Validate response status code
+        if (!this.getValidStatusCodes().includes(idResponse.status)) {
+          throw new Error(`
+  API ${LMethod} Failed
+  Status Code: ${idResponse.status}
+  Response Body: ${JSON.stringify(idResponse.body, null, 2)}
+          `);
+        }
+  
+        // Perform response validation if enabled
+        if (this.shouldValidateResponse()) {
+          this.validateResponse(idResponse, LEndpoint);
+        }
+  
+        cy.log(`API ${LMethod} Completed Successfully`);
+      });
+    }
+  }
 
 // abstract class for Test SCript Header level
 // to determin Create or UPdate on UI test and
