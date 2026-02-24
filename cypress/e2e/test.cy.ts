@@ -37,18 +37,18 @@ describe("Automated Test Run", () => {
   const LdScripts = Cypress.env("FETCHED_MASTER_DATA") as any[];
   //each master data in the Test Lab
   // become separate IT
-  LdScripts.forEach((ldScript, iIndex) => {
-    let ldRunner: ifTestRunner
+  LdScripts.forEach((ldScript) => {
+    
+    let ldRunner: ifTestRunner = new clTestRunnerUiService(
+      LdContext,
+      LdAuthService,
+      LdReportService,
+      LTargetUrl,
+      LdTestLab,
+      LdMasterData,
+      LdLoginData
+    );
     it(`running ${ldScript.name}`, () => {
-      ldRunner = new clTestRunnerUiService(
-        LdContext,
-        LdAuthService,
-        LdReportService,
-        LTargetUrl,
-        LdTestLab,
-        LdMasterData,
-        LdLoginData
-      );
       ldRunner.executeScript(ldScript);
     });
 
