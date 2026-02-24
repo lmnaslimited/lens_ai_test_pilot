@@ -157,7 +157,7 @@ export class clTestRunnerUiService {
     // Read current browser URL after execution
     cy.url().then((iUrl: string) => {
       // Extract document identifier from URL path
-      if(!iUrl){return}
+      if(!iUrl) {return}
       const docname = this.extractDocnameFromUrl(iUrl);
       // Skip if extraction failed
       if (!docname) return;
