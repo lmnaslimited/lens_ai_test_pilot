@@ -771,7 +771,7 @@ export class clActionApiGet extends clAction {
       }
   
       if (!lPath.startsWith("/")) {
-        lPath = `/${lPath}`;          // Ensure path starts with '/'
+        lPath = `/api/resource/${lPath}`;          // Ensure path starts with '/'
       }
   
       const LQuery = this.actionRow.menus?.trim();  // Append query parameters if provided
