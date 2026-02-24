@@ -798,9 +798,13 @@ export class clActionApiGet extends clAction {
         const LChildIndex = row.child_index;
         const LTableName = row.child_name;
   
+        // Inline datatype conversion
+        // to support int and float
+        let LValue: any = row.data_type === "Currency" ? parseFloat(row.value) : row.value;
+
         // Assign flat field (Parent Fields) expectation
         if (!LChildIndex) {
-            LdFlatFields[row.field_name] = row.value;
+            LdFlatFields[row.field_name] = LValue;
           return;
         }
   
@@ -815,7 +819,7 @@ export class clActionApiGet extends clAction {
         }
   
         // Assign expected child field value
-        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = row.value;
+        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
       });
   
       return { LdFlatFields, LdGroupedFields };
@@ -996,7 +1000,13 @@ export class clActionApiGet extends clAction {
     // Build request body for update operation
     // Converts configured Master Data fields into API-compatible JSON payload
     protected buildRequestBody(): Record<string, any> {
-        return this.buildExpectedPayload();
+        // Get structured data from master mapping
+        const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
+        // Merge parent and child fields into single payload
+        return {
+            ...LdFlatFields,
+            ...LdGroupedFields
+        };
     }
   }
   
