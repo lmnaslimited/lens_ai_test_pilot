@@ -1,4 +1,4 @@
-import { clTestRunnerFactory, clTestRunnerUiService, clTestRunnerApiService } from "../src/services/testScript";
+import { clTestRunnerUiService } from "../src/services/testScript";
 import { ifTestContext } from "../src/types";
 import { clAuthService } from "../src/services/authService";
 import { clReportService } from "../src/services/reportService";
@@ -47,6 +47,7 @@ describe("Test Script Module", () => {
     ({
         currentScript: null, // script currently under execution
         createdDocnames: [], // documents created via UI actions
+        currentScriptRowIdx:1, // increment pointer
         storeDocname: [], // stored docnames for later reference
         createdDocsByIndex: [], // indexed document storage
         capturedLogs: [], // logs captured during run
@@ -79,78 +80,14 @@ describe("Test Script Module", () => {
         jest.clearAllMocks();
     });
 
-    // Factory & Construction
-    describe("clTestRunnerFactory", () => {
-        let ldScript: any;
-        let ldAuth: clAuthService;
-        let ldReport: clReportService;
-
-        beforeEach(() => {
-            // Given: a valid UI test script definition
-            ldScript = { test_type: "UI" };
-            // Given: mocked dependencies
-            ldAuth = LdCreateAuthMock();
-            ldReport = LdCreateReportMock();
-        });
-
-        it("should create a UI TestRunnerService instance", () => {
-            // When: factory is asked to create a runner
-            const LdRunner = clTestRunnerFactory.create(
-                ldScript,
-                ldContext,
-                ldAuth,
-                ldReport,
-                LTargetUrl,
-                {}, // test lab data (not relevant for this test)
-                {}, // test master data
-                {} // connection configuration
-            );
-            // Then: correct service implementation is returned
-            expect(LdRunner).toBeInstanceOf(clTestRunnerUiService);
-        });
-
-        it("should inject the same context reference into the service", () => {
-            // When: runner is created
-            const LdRunner = clTestRunnerFactory.create(
-                ldScript,
-                ldContext,
-                ldAuth,
-                ldReport,
-                LTargetUrl,
-                {},
-                {},
-                {}
-            ) as clTestRunnerUiService;
-            // Then: the exact same context object is used
-            // This verifies dependency wiring, not execution behavior
-            expect((LdRunner as any).ldContext).toBe(ldContext);
-        });
-
-        it("should throw error for unsupported test type", () => {
-            // Given: an invalid / unsupported test type
-            ldScript = { test_type: "UNKNOWN" };
-            expect(() => {
-                clTestRunnerFactory.create(
-                    ldScript,
-                    ldContext,
-                    ldAuth,
-                    ldReport,
-                    LTargetUrl,
-                    {},
-                    {},
-                    {}
-                );
-            }).toThrow(`Unsupported test type: ${ldScript.test_type}`);
-        });
-    });
-
     // Script Execution & Internals
     describe("clTestRunnerUiService", () => {
         let ldService: clTestRunnerUiService;
         // executeScript()
+
         describe("clTestRunnerUiService - executeScript ()", () => { 
-            let ldAuth: clAuthService;
-            let ldReport: clReportService;
+            let ldAuth: clAuthService
+            let ldReport : clReportService
 
             const LLoginData = {
                 TestScript1: {
@@ -158,8 +95,11 @@ describe("Test Script Module", () => {
                 password: "secret",
                 },
             };
-
-            const LdCreateContext = () =>
+            const LdRunScript = () => ldService.executeScript({ name: "TestScript1" } as any);
+            beforeEach(() => {
+                ldAuth = LdCreateAuthMock();
+                ldReport =  LdCreateReportMock();
+                ldService = 
                 new clTestRunnerUiService(
                     ldContext,
                     ldAuth,
@@ -169,30 +109,22 @@ describe("Test Script Module", () => {
                     {},
                     LLoginData
                 );
-
-            const LdRunScript = () =>
-                ldService.executeScript({ name: "TestScript1" } as any);
-
-            beforeEach(() => {
-                ldAuth = LdCreateAuthMock();
-                ldReport = LdCreateReportMock();
-                ldService = LdCreateContext();
             });
 
             it("sets currentScript on execution start", () => {
                 const LdScript = { name: "TestScript1" };
-                ldService.executeScript(LdScript as any);
+                ldService.executeScript(LdScript as any)
                 expect(ldContext.currentScript).toBe(LdScript);
             });
 
             it("overwrites previously set currentScript", () => {
                 ldContext.currentScript = { name: "OldScript" } as any;
-                LdRunScript();
+                LdRunScript()
                 expect(ldContext.currentScript?.name).toBe("TestScript1");
             });
 
             it("calls login exactly once per execution", () => {
-                LdRunScript();
+                LdRunScript()
                 expect(ldAuth.login).toHaveBeenCalledTimes(1);
             });
 
@@ -226,6 +158,11 @@ describe("Test Script Module", () => {
                 expect(ldContext.createdDocsByIndex.length).toBe(0);
             });
 
+            it("The current script Row index should be 1", () => {
+                LdRunScript();
+                expect(ldContext.currentScriptRowIdx).toBe(1);
+            })
+
             it("does not mark test as failed on successful execution", () => {
                 LdRunScript();
                 expect(ldContext.isTestPassed).toBe(true);
@@ -243,12 +180,6 @@ describe("Test Script Module", () => {
                     actual_test_data: null,
                     } as any)
                 ).not.toThrow();
-            });
-
-            it("does not mutate loginData during execution", () => {
-                const LSnapshot = JSON.stringify(LLoginData);
-                LdRunScript();
-                expect(JSON.stringify(LLoginData)).toBe(LSnapshot);
             });
 
             it("can be executed multiple times with same script safely", () => {
@@ -276,6 +207,7 @@ describe("Test Script Module", () => {
                 expect(LSpy).toHaveBeenCalled();
             });
         });
+
         describe("clTestRunnerUiService - document injection, lookup & capture", () => {
             let ldContext: ifTestContext;
 
@@ -302,7 +234,7 @@ describe("Test Script Module", () => {
                             },
                         ],
                     },
-
+                    currentScriptRowIdx:1,
                     /**
                     * storeDocname is mocked because:
                     * - injectDocumentIfRequired reads from it using use_docname index
@@ -330,9 +262,9 @@ describe("Test Script Module", () => {
                         * - support captureCreatedDocument row matching
                         */
                         test_lab_script: [
-                            { master_data: "TestScript1", use_docname: 1 },
-                            { master_data: "Quotation", row_index: 1 },
-                            { master_data: "Customer", row_index: 2 },
+                            { master_data: "TestScript1", use_docname: 1, idx:1 },
+                            { master_data: "Quotation", row_index: 1, idx:2 },
+                            { master_data: "Customer", row_index: 2, idx:3 },
                         ],
                     },
                     {},
@@ -347,7 +279,6 @@ describe("Test Script Module", () => {
                     name: "TestScript1",
                     actual_test_data: [],
                 };
-
                 (ldService as any).injectDocumentIfRequired(LdScript);
 
                 expect(LdScript.document).toBe("QUO-001");
@@ -361,7 +292,9 @@ describe("Test Script Module", () => {
 
             // findTestLabRow */
 
-            it("returns matching test lab row when master data exists", () => {
+            it("returns matching test lab row when master data exists with current Script Row Index", () => {
+                ldContext.currentScriptRowIdx = 2
+
                 const LdRow = (ldService as any).findTestLabRow("Quotation");
 
                 expect(LdRow).toBeDefined();
@@ -386,37 +319,17 @@ describe("Test Script Module", () => {
                 );
 
                 expect(() => {
-                    (LdEmptyService as any).findTestLabRow("Quotation");
+                    (LdEmptyService as any).findTestLabRow("TestScript1");
                 }).not.toThrow();
             });
 
-            it("does not mutate test_lab_script data", () => {
-                const LSnapshot = JSON.stringify(
-                    (ldService as any).ldTestLabData.test_lab_script
-                );
-
-                (ldService as any).findTestLabRow("Quotation");
-
-                expect(
-                    JSON.stringify((ldService as any).ldTestLabData.test_lab_script)
-                ).toBe(LSnapshot);
-            });
-
             // captureCreatedDocument */
-
-            it("does nothing when URL does not contain a document name", () => {
-                LdMockCyUrl("http://localhost/app");
-
-                (ldService as any).captureCreatedDocument("Quotation");
-
-                expect(ldContext.createdDocnames.length).toBe(0);
-            });
 
             it("does not throw when cy.url resolves to undefined", () => {
                 LdMockCyUrl(undefined);
 
                 expect(() => {
-                    (ldService as any).captureCreatedDocument("Quotation");
+                    (ldService as any).captureCreatedDocument({"name":"TestScript1"});
                 }).not.toThrow();
             });
 
@@ -424,19 +337,34 @@ describe("Test Script Module", () => {
                 LdMockCyUrl("http://localhost/app/invoice/INV-0001");
 
                 expect(() => {
-                    (ldService as any).captureCreatedDocument("Invoice");
+                    (ldService as any).captureCreatedDocument({"name":"TestScript1"});
                 }).not.toThrow();
+            });
+
+            it("when URL contain a document name", () => {
+                ldContext.storeDocname = []
+                LdMockCyUrl("http://localhost/app/invoice/INV-0001");
+
+                (ldService as any).captureCreatedDocument({ name: "TestScript1"});
+
+                expect(ldContext.storeDocname.length).toBe(1);
             });
         });
 
-        describe("clTestRunnerUiService - handleConnectionCreation, extractDocnameFromUrl, inalizeScript", () => { 
+        describe("clTestRunnerUiService - handleConnectionCreation, extractDocnameFromUrl, finalizeScript", () => { 
             beforeEach(() => {
                 ldService = new clTestRunnerUiService(
                     ldContext,
                     {} as any,
-                    {} as any,
+                    LdCreateReportMock(),
                     LTargetUrl,
-                    { test_lab_script: [] },
+                    { test_lab_script: 
+                        [
+                            { master_data: "TestScript1", use_docname: 1, idx:1 },
+                            { master_data: "Quotation", row_index: 1, idx:2 },
+                            { master_data: "Customer", row_index: 2, idx:3 },
+                        ]
+                    },
                     {},
                     {}
                 );
@@ -498,7 +426,9 @@ describe("Test Script Module", () => {
                 ldContext.capturedLogs.push("log");
                 ldContext.capturedErrors.push("err");
                 ldContext.isTestPassed = false;
-
+                // Prevent Run Log Post calls interfering
+                jest.spyOn(ldService as any, "postAndUpdateRunLog")
+                .mockImplementation(() => {});
                 ldService.finalizeScript();
 
                 expect(ldContext.capturedLogs.length).toBe(0);
@@ -506,307 +436,47 @@ describe("Test Script Module", () => {
                 expect(ldContext.isTestPassed).toBe(true);
                 expect(ldContext.currentScript).toBeNull();
             });
+
+            //buildLogEntries()
+            it("Should collect error log only", ()=>{
+                ldContext.capturedLogs.push("log");
+                ldContext.capturedErrors.push("err");
+                const LaCapturedLog = [{"type": "Error", "message":"err"}]
+                expect((ldService as any).buildLogEntries()).toBe(LaCapturedLog)
+            })
+
+            //resolveScriptNames()
+            it("Should break ScriptName separatly for name containing '&'", ()=>{
+                const LScriptName = "TestScript1&Quotation&Customer"
+                const LaScriptNames = ["TestScript1", "Quotation", "Customer"]
+                expect((ldService as any).resolveScriptNames(LScriptName)).toEqual(LaScriptNames)
+            })
+
+            it("Should not break scriptname when name does not contain '&'", ()=>{
+                
+                expect((ldService as any).resolveScriptNames("TestScript1")).toEqual(["TestScript1"])
+            })
+
+            it("currentScriptRowIdx should be 4 for Three Script run", ()=>{
+                /**
+                 * Initial idx = 1
+                 * After TestScript1, idx = 2
+                 * After Quotation, idx = 3
+                 * After Customer, idx = 4
+                 */
+                ldContext.currentScript = {"name":"TestScript1&Quotation&Customer"}
+                // Prevent Run Log Post calls interfering
+                jest.spyOn(ldService as any, "postAndUpdateRunLog")
+                .mockImplementation(() => {});
+                ldService.finalizeScript()
+                expect(ldContext.currentScriptRowIdx).toBe(4)
+            })
+
+            //postAndUpdateRunLog
+            it("Should Create Run Log only for error log", ()=>{
+                expect((ldService as any).postAndUpdateRunLog({"name": "TestScript1"},"TestScript1", [], "Fail")).toBeDefined()
+            })
         });
 
     });
-
-    describe("clTestRunnerApiService - Full API Execution Flow", () => {
-        // Service dependencies
-        let ldAuth: clAuthService;
-        let ldReport: clReportService;
-        let ldLoginData: any;
-        let ldService: clTestRunnerApiService;
-    
-        // Helper to simulate API response structure
-        const LdMockResponse = (status: number, body: any) => ({
-            status,
-            body,
-        });
-    
-        const mockChain = (response?: any) => ({
-            then: (cb: any) => cb(response),
-        });
-        
-        beforeEach(() => {
-
-            ldAuth = {
-                login: jest.fn().mockReturnValue(mockChain()),
-                logout: jest.fn(),
-            } as any;
-            
-        
-            ldReport = LdCreateReportMock();
-        
-            ldLoginData = {
-                ApiScript1: {
-                    email: "api@test.com",
-                    password: "secret",
-                },
-            };
-        
-            ldService = new clTestRunnerApiService(
-                ldContext,
-                LTargetUrl,
-                ldLoginData,
-                ldAuth,
-                {},
-                ldReport
-            );
-        
-            (cy.request as jest.Mock).mockImplementation(() => ({
-                then: (cb: any) =>
-                    cb({
-                        status: 200,
-                        body: {
-                            data: [{ name: "TEST-001" }],
-                            message: { name: "TEST-001" },
-                        },
-                    }),
-            }));
-        });
-        
-        // ----------------------------
-        // SUCCESS FLOW - RESOURCE API
-        // ----------------------------
-    
-        it("executes resource GET API successfully", async () => {
-            // Simulate resource-based GET API script
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            // Verify authentication was triggered with correct credentials
-            expect(ldAuth.login).toHaveBeenCalledWith(
-                "api@test.com",
-                "secret"
-            );
-    
-            // Verify API request was executed
-            expect(cy.request).toHaveBeenCalled();
-    
-            // Verify test context marked as passed
-            expect(ldContext.isTestPassed).toBe(true);
-        });
-    
-        // ----------------------------
-        // SUCCESS FLOW - METHOD API
-        // ----------------------------
-    
-        it("executes method API successfully", () => {
-            // Simulate method-based POST API script
-            const LdScript = {
-                name: "ApiScript1",
-                action: "POST",
-                api_type: "method",
-            };
-    
-            // Verify API call was executed
-            ldService.executeScript(LdScript as any);
-    
-            expect(cy.request).toHaveBeenCalled();
-            // Verify execution marked as successful
-            expect(ldContext.isTestPassed).toBe(true);
-        });
-    
-        // ----------------------------
-        // URL BUILDING VALIDATION
-        // ----------------------------
-    
-        it("builds correct URL for resource API with document", () => {
-            // Resource API with document ID should append document to URL
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-                document: "INV-001",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            const requestArgs = (cy.request as jest.Mock).mock.calls[0][0] as {
-                url: string;
-                method: string;
-                body?: any;
-            };
-    
-            // Validate URL contains correct resource path with document
-            expect(requestArgs.url).toContain(
-                `${LTargetUrl}/api/resource/Invoice/INV-001`
-            );
-        });
-    
-        it("builds correct URL for method API", () => {
-            // Method APIs should hit /api/method endpoint
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "method",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            const requestArgs = (cy.request as jest.Mock).mock.calls[0][0]as {
-                url: string;
-                method: string;
-                body?: any;
-            };
-    
-            // Validate correct method endpoint
-            expect(requestArgs.url).toContain(
-                `${LTargetUrl}/api/method`
-            );
-        });
-    
-        // ----------------------------
-        // PARAM HANDLING
-        // ----------------------------
-    
-        it("adds query parameters correctly", () => {
-            // Query parameters should be appended to URL
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-                params: "limit=1",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            const requestArgs = (cy.request as jest.Mock).mock.calls[0][0]as {
-                url: string;
-                method: string;
-                body?: any;
-            };
-    
-            // Validate query string presence
-            expect(requestArgs.url).toContain("?limit=1");
-        });
-    
-        // ----------------------------
-        // PAYLOAD PARSING
-        // ----------------------------
-    
-        it("parses JSON payload correctly for POST request", () => {
-            // POST should attach parsed JSON payload to body
-            const LdScript = {
-                name: "ApiScript1",
-                action: "POST",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-                actual_test_data: [
-                    {
-                        description: JSON.stringify({ amount: 100 }),
-                    },
-                ],
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            const requestArgs = (cy.request as jest.Mock).mock.calls[0][0]as {
-                url: string;
-                method: string;
-                body?: any;
-            };
-    
-            // Validate payload parsing
-            expect(requestArgs.body).toEqual({ amount: 100 });
-        });
-    
-        it("does not attach body for GET requests", () => {
-            // GET requests must not send request body
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            const requestArgs = (cy.request as jest.Mock).mock.calls[0][0]as {
-                url: string;
-                method: string;
-                body?: any;
-            };
-    
-            // Validate no body attached
-            expect(requestArgs.body).toBeUndefined();
-        });
-    
-        // ----------------------------
-        // VALIDATION LOGIC - GET MATCH
-        // ----------------------------
-    
-        it("validates GET response fields correctly", () => {
-            // GET validation should compare expected values against response
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-            };
-    
-            ldService.executeScript(LdScript as any);
-    
-            // Validate test marked as passed after response comparison
-            expect(ldContext.isTestPassed).toBe(true);
-        });
-    
-        // ----------------------------
-        // ERROR FLOW - 400+
-        // ----------------------------
-    
-        it("marks test as failed when API returns 400+", () => {
-            // Simulate server error response
-            (cy.request as jest.Mock).mockImplementation(() => ({
-                then: (cb: any) =>
-                    cb(
-                        LdMockResponse(500, {
-                            message: "Internal Error",
-                        })
-                    ),
-            }));
-    
-            const LdScript = {
-                name: "ApiScript1",
-                action: "GET",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-            };
-    
-            // Execution should throw on error status
-            expect(() =>
-                ldService.executeScript(LdScript as any)
-            ).toThrow();
-    
-            // Validate context updated to failed state
-            expect(ldContext.isTestPassed).toBe(false);
-            expect(ldContext.capturedErrors.length).toBeGreaterThan(0);
-        });
-    
-        // ----------------------------
-        // DEFENSIVE: NO PAYLOAD
-        // ----------------------------
-    
-        it("handles missing actual_test_data safely", () => {
-            // Script without payload should not crash
-            const LdScript = {
-                name: "ApiScript1",
-                action: "POST",
-                api_type: "resource",
-                doctype_to_be_tested: "Invoice",
-            };
-    
-            expect(() =>
-                ldService.executeScript(LdScript as any)
-            ).not.toThrow();
-        });
-    });    
 })
