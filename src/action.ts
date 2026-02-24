@@ -729,180 +729,262 @@ export class clActionValidateAlert extends clAction {
 }
 
 export class clActionApiGet extends clAction {
-
+  
+    // Return HTTP method for this action
     protected getMethod(): Cypress.HttpMethod {
       return "GET";
     }
   
+    // Return request headers
     protected getHeaders(): Record<string, any> {
-        return {};
+      return {};
     }
-
+  
+    // Define valid HTTP status codes
     protected getValidStatusCodes(): number[] {
       return [200];
     }
-
-    protected shouldValidateResponse(): boolean {
-        return true;
-      }
   
+    // Control whether response validation should execute
+    protected shouldValidateResponse(): boolean {
+      return true;
+    }
+  
+    // Return request body (GET has no body)
     protected buildRequestBody(): Record<string, any> | undefined {
       return undefined;
     }
   
-    protected transformDataRow(): Record<string, any> {
-        const dataRows = this.actionData.slice(1);
-
-        // Top-level fields
-        const normalFields = dataRows
-            .filter(row => !row.is_child && row.field_name)
-            .reduce((acc, row) => ({ ...acc, [row.field_name]: row.value }), {});
-
-        // Child table fields grouped by child_name and child_index
-        const childTables = dataRows
-            .filter(row => row.is_child && row.field_name)
-            .reduce<Record<string, Record<number, Record<string, any>>>>((acc, row) => {
-            const childGroup = acc[row.child_name] || {};
-            const rowIndex = row.child_index || 0;
-
-            childGroup[rowIndex] = { ...(childGroup[rowIndex] || {}), [row.field_name]: row.value };
-            acc[row.child_name] = childGroup;
-            return acc;
-            }, {});
-
-        // Convert grouped child tables into arrays
-        const formattedChildTables = Object.fromEntries(
-            Object.entries(childTables).map(([childName, rows]) => [
-            childName,
-            Object.values(rows)
-            ])
-        );
-
-        return { ...normalFields, ...formattedChildTables };
-    }
-  
+    // Construct full endpoint URL using target host and path
     protected buildEndpoint(): string {
-      const LTargetHost = Cypress.env("TARGET_URL");
+  
+      const LTargetHost = Cypress.env("TARGET_URL"); // Read base URL from env
   
       if (!LTargetHost) {
         throw new Error("API GET: TARGET_URL not configured.");
       }
   
-      let lPath = this.actionRow.value?.trim();
+      let lPath = this.actionRow.value?.trim(); // Read endpoint path from action row
   
       if (!lPath) {
         throw new Error("API GET: Endpoint missing in 'value' field.");
       }
   
       if (!lPath.startsWith("/")) {
-        lPath = `/${lPath}`;
+        lPath = `/${lPath}`;          // Ensure path starts with '/'
       }
   
-      if (this.actionRow.menus && this.actionRow.menus.trim() !== "") {
-        const query = this.actionRow.menus.trim();
-        lPath += lPath.includes("?") ? `&${query}` : `?${query}`;
+      const LQuery = this.actionRow.menus?.trim();  // Append query parameters if provided
+      if (LQuery) {
+        lPath += lPath.includes("?") ? `&${LQuery}` : `?${LQuery}`;
       }
-      return `${LTargetHost.replace(/\/$/, "")}${lPath}`;
+  
+      return `${LTargetHost.replace(/\/$/, "")}${lPath}`; // Return final URL
     }
   
+    // Build expected response structure from action data
+    protected buildExpectedPayload(): {
+      LdFlatFields: Record<string, any>,
+      LdGroupedFields: Record<string, any[]>
+    } {
+  
+      const LdFlatFields: Record<string, any> = {};  // Store parent-level expected fields
+      const LdGroupedFields: Record<string, any[]> = {};  // Store child table expectations
+  
+      this.actionData.slice(1).forEach(row => {
+  
+        if (!row.field_name) return;  // Skip rows without field name
+  
+        const LChildIndex = row.child_index;
+        const LTableName = row.child_name;
+  
+        // Assign flat field (Parent Fields) expectation
+        if (!LChildIndex) {
+            LdFlatFields[row.field_name] = row.value;
+          return;
+        }
+  
+        // Initialize child table array if missing
+        if (!LdGroupedFields[LTableName]) {
+            LdGroupedFields[LTableName] = [];
+        }
+  
+        // Initialize child row object if missing
+        if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
+            LdGroupedFields[LTableName][LChildIndex - 1] = {};
+        }
+  
+        // Assign expected child field value
+        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = row.value;
+      });
+  
+      return { LdFlatFields, LdGroupedFields };
+    }
+  
+    // Validate API response against expected payload
     protected validateResponse(
       idResponse: Cypress.Response<any>,
-      iEndpoint: string,
-      idExpectedPayload: Record<string, any>
+      iEndpoint: string
     ): void {
   
+        // Ensure response contains expected data structure
       if (!idResponse.body || !idResponse.body.data) {
         throw new Error(`
-            Invalid response structure.
-            Full Response: ${JSON.stringify(idResponse.body, null, 2)}
+  Invalid response structure.
+  Full Response: ${JSON.stringify(idResponse.body, null, 2)}
         `);
       }
   
-      let ldResponseData: any;
+      // Normalize response data (array or object)
+      const LdResponseData = Array.isArray(idResponse.body.data)
+        ? idResponse.body.data[0]
+        : idResponse.body.data;
   
-      if (Array.isArray(idResponse.body.data)) {
-        if (idResponse.body.data.length === 0) {
-          throw new Error(`Empty result set. Endpoint: ${iEndpoint}`);
-        }
-        ldResponseData = idResponse.body.data[0];
-      } else {
-        ldResponseData = idResponse.body.data;
-      }
+      // Build expectations
+      const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
   
-      Object.entries(idExpectedPayload).forEach(([field, expectedValue]) => {
+      this.validateFlatFields(LdResponseData, LdFlatFields, iEndpoint);
+      this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    }
   
-        if (!(field in ldResponseData)) {
+    // Validate top-level (Parent Field) response fields
+    private validateFlatFields(
+      idResponseData: any,
+      idFlatFields: Record<string, any>,
+      iEndpoint: string
+    ): void {
+  
+      Object.entries(idFlatFields).forEach(([LField, LExpected]) => {
+  
+        if (!(LField in idResponseData)) {
           throw new Error(`
-            Field Missing: ${field}
-            Available Keys: ${Object.keys(ldResponseData).join(", ")}
+  Field Missing: ${LField}
+  Available Keys: ${Object.keys(idResponseData).join(", ")}
           `);
         }
   
-        const LActualValue = ldResponseData[field];
+        const LActual = idResponseData[LField];  // Extract actual value
   
-        if (LActualValue != expectedValue) {
+        if (LActual != LExpected) {
           throw new Error(`
-            Validation Failed
-            Field: ${field}
-            Expected: ${expectedValue}
-            Actual: ${LActualValue}
-            Endpoint: ${iEndpoint}
+  Validation Failed
+  Field: ${LField}
+  Expected: ${LExpected}
+  Actual: ${LActual}
+  Endpoint: ${iEndpoint}
           `);
         }
   
-        cy.log(`${field} validated`);
+        cy.log(`✔ ${LField} : ${LActual}`);
       });
     }
   
+    // Validate child table response fields
+    private validateGroupedFields(
+      idResponseData: any,
+      idGroupedFields: Record<string, any[]>,
+      iEndpoint: string
+    ): void {
+  
+      Object.entries(idGroupedFields).forEach(([LTableName, LaExpectedRows]) => {
+  
+        const LaResponseArray = idResponseData[LTableName];  // Extract child table array
+  
+        if (!Array.isArray(LaResponseArray)) {
+          throw new Error(`Child Table Missing or Not Array: ${LTableName}`);
+        }
+  
+        LaExpectedRows.forEach((LdExpectedRow, LIndex) => {
+  
+          const LdActualRow = LaResponseArray[LIndex];  // Extract actual row
+  
+          if (!LdActualRow) {
+            throw new Error(`Missing row ${LIndex + 1} in ${LTableName}`);
+          }
+  
+          Object.entries(LdExpectedRow).forEach(([LField, LExpected]) => {
+  
+            if (LdActualRow[LField] != LExpected) {
+              throw new Error(`
+  Child Table Validation Failed
+  Table: ${LTableName}
+  Row: ${LIndex + 1}
+  Field: ${LField}
+  Expected: ${LExpected}
+  Actual: ${LdActualRow[LField]}
+  Endpoint: ${iEndpoint}
+              `);
+            }
+  
+            cy.log(`✔ ${LTableName}[${LIndex + 1}].${LField} : ${LdActualRow[LField]}`);
+          });
+        });
+      });
+    }
+  
+    // Execute API request and perform validation
     executeAction(): void {
+      // Get first row as action configuration
       this.actionRow = this.actionData[0];
+  
       if (!this.actionRow) {
         throw new Error("API Action: No action row provided.");
       }
   
-        const LMethod = this.getMethod(); 
-        const LEndpoint = this.buildEndpoint();  
-         
-        // const expectedPayload = this.buildExpectedPayload(); 
-        cy.log(`Executing API ${LMethod}: ${LEndpoint}`); 
-        cy.request({ 
-            method: LMethod, 
-            url: LEndpoint, 
-            headers: this.getHeaders(), 
-            body: this.buildRequestBody(), 
-            failOnStatusCode: false, })
-        .then((response: Cypress.Response<any>) => {
-        
-        if (!this.getValidStatusCodes().includes(response.status)) {
+      const LMethod = this.getMethod();       // Resolve HTTP method
+      const LEndpoint = this.buildEndpoint(); // Build full endpoint URL
+  
+      cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
+  
+      cy.request({
+        method: LMethod,
+        url: LEndpoint,
+        headers: this.getHeaders(),      // Attach headers
+        body: this.buildRequestBody(),   // Attach request body if any
+        failOnStatusCode: false,         // Manually handle status validation
+      }).then((idResponse: Cypress.Response<any>) => {
+  
+        // Validate response status code
+        if (!this.getValidStatusCodes().includes(idResponse.status)) {
           throw new Error(`
-            API ${LMethod} Failed
-            Status Code: ${response.status}
-            Response Body: ${JSON.stringify(response.body, null, 2)}
+  API ${LMethod} Failed
+  Status Code: ${idResponse.status}
+  Response Body: ${JSON.stringify(idResponse.body, null, 2)}
           `);
         }
   
+        // Perform response validation if enabled
         if (this.shouldValidateResponse()) {
-            this.validateResponse(response, LEndpoint, this.transformDataRow());
-          }
+          this.validateResponse(idResponse, LEndpoint);
+        }
   
         cy.log(`API ${LMethod} Completed Successfully`);
       });
     }
   }
 
+  // API PUT Action Class
+  // Used to perform document update operations via API
+  // Inherits endpoint construction and execution flow from API GET action
   export class clActionApiPut extends clActionApiGet{
+    // Override HTTP method to execute an UPDATE request
     protected getMethod(): Cypress.HttpMethod {
         return "PUT";
     }
-    
+    // Define acceptable success status codes for PUT
+    // 200 → Successfully updated existing document
+    // 201 → Resource created/updated depending on backend behavior
     protected getValidStatusCodes(): number[] {
         return [200, 201];
       }
-    
+    // Disable response validation for PUT
+    // Functional purpose: focus on successful update confirmation
+    // without validating returned payload structure
     protected shouldValidateResponse(): boolean {
         return false;
     }
-
+    // Provide required headers for authenticated API update execution
+    // Includes authorization token and JSON content format
     protected getHeaders(): Record<string, any> {
         return {
           "Authorization": Cypress.env("TARGET_KEY"),
@@ -911,9 +993,10 @@ export class clActionApiGet extends clAction {
           "Content-Type": "application/json",
         };
     }
-
+    // Build request body for update operation
+    // Converts configured Master Data fields into API-compatible JSON payload
     protected buildRequestBody(): Record<string, any> {
-        return this.transformDataRow();
+        return this.buildExpectedPayload();
     }
   }
   
