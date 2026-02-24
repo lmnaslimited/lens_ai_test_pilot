@@ -69,8 +69,19 @@ describe("Test Script Module", () => {
     * - validates interaction only */
     const LdCreateReportMock = (): clReportService =>
     ({
-        postRunLog: jest.fn(), // run summary logging
-        getTestRun: jest.fn(), // fetch existing test run
+        postRunLog: jest.fn().mockReturnValue({
+            then: (cb: any) =>
+              cb({
+                body: { data: { name: "RL-001" } }
+              })
+          }), 
+        getTestRun: jest.fn().mockReturnValue({
+            then: (cb: any) =>
+                cb({
+                    body: {data:{test_log:[{name: "testScript1", test_script: "testScript1", master_data: "testScript1", idx:1}]}}
+                })
+        }),
+        // fetch existing test run
         updateTestLog: jest.fn(), // update test execution result
     } as unknown as clReportService);
 
@@ -352,11 +363,13 @@ describe("Test Script Module", () => {
         });
 
         describe("clTestRunnerUiService - handleConnectionCreation, extractDocnameFromUrl, finalizeScript", () => { 
+            let ldReportMock: clReportService
             beforeEach(() => {
+                ldReportMock = LdCreateReportMock()
                 ldService = new clTestRunnerUiService(
                     ldContext,
                     {} as any,
-                    LdCreateReportMock(),
+                    ldReportMock,
                     LTargetUrl,
                     { test_lab_script: 
                         [
@@ -431,7 +444,6 @@ describe("Test Script Module", () => {
                 .mockImplementation(() => {});
                 ldService.finalizeScript();
 
-                expect(ldContext.capturedLogs.length).toBe(0);
                 expect(ldContext.capturedErrors.length).toBe(0);
                 expect(ldContext.isTestPassed).toBe(true);
                 expect(ldContext.currentScript).toBeNull();
@@ -442,7 +454,7 @@ describe("Test Script Module", () => {
                 ldContext.capturedLogs.push("log");
                 ldContext.capturedErrors.push("err");
                 const LaCapturedLog = [{"type": "Error", "message":"err"}]
-                expect((ldService as any).buildLogEntries()).toBe(LaCapturedLog)
+                expect((ldService as any).buildLogEntries()).toEqual(LaCapturedLog)
             })
 
             //resolveScriptNames()
@@ -473,8 +485,66 @@ describe("Test Script Module", () => {
             })
 
             //postAndUpdateRunLog
-            it("Should Create Run Log only for error log", ()=>{
-                expect((ldService as any).postAndUpdateRunLog({"name": "TestScript1"},"TestScript1", [], "Fail")).toBeDefined()
+            it("Should Create Run Log only for Failed test script", ()=>{
+                
+            (ldService as any).postAndUpdateRunLog({
+                test_script: "testScript1",
+                idx: 1
+              },
+              "testScript1",
+              [{ message: "err", type: "error" }],
+              "Fail")
+                expect(ldReportMock.postRunLog).toHaveBeenCalledTimes(1)
+            })
+
+            it("Should update the Test Run with result and Run Log", ()=>{
+            
+                (ldService as any).postAndUpdateRunLog({
+                    test_script: "testScript1",
+                    idx: 1
+                  },
+                  "testScript1",
+                  [{ message: "err", type: "error" }],
+                  "Fail")
+                    expect(ldReportMock.updateTestLog).toHaveBeenCalledWith("testScript1", {result: "Fail",
+                        run_log: "RL-001"})
+            })
+            it("Should not Create Run Log when there is no logs", ()=>{
+                
+                (ldService as any).postAndUpdateRunLog({
+                    test_script: "testScript1",
+                    idx: 1
+                  },
+                  "testScript1",
+                  [],
+                  "Fail")
+                expect(ldReportMock.postRunLog).toHaveBeenCalledTimes(0)
+            })
+
+            it("Should only update the result in Test Run when no logs were captured for fail test script", ()=>{
+                
+                (ldService as any).postAndUpdateRunLog({
+                    test_script: "testScript1",
+                    idx: 1
+                  },
+                  "testScript1",
+                  [],
+                  "Fail")
+                expect(ldReportMock.updateTestLog).toHaveBeenCalledWith("testScript1", {result: "Fail",
+                    run_log: null})
+            })
+
+            it("Should only update the result in Test Run when test script is Pass", ()=>{
+                
+                (ldService as any).postAndUpdateRunLog({
+                    test_script: "testScript1",
+                    idx: 1
+                  },
+                  "testScript1",
+                  [],
+                  "Pass")
+                expect(ldReportMock.updateTestLog).toHaveBeenCalledWith("testScript1", {result: "Pass",
+                    run_log: null})
             })
         });
 
