@@ -125,7 +125,7 @@ export class clTestRunnerUiService {
         );
 
         // Create action instance dynamically and execute it
-        clActionFactory.createAction(idRow.action, LdData).executeAction();
+        clActionFactory.createAction(idRow.action, LdData, this.ldContext, this.ldTestLabData).executeAction();
       });
   }
 
