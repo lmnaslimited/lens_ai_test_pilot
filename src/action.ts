@@ -232,7 +232,7 @@ export class clActionSubmit extends clAction {
 export class clActionCancel extends clAction {
     executeAction(): void {
         cy.contains('button', 'Cancel').scrollIntoView().should('exist').click({ force: true });
-        cy.wait(fnGetDelay("medium"));
+        cy.wait(fnGetDelay("long"));
         cy.get('.modal:visible').within(() => {
             cy.contains('button', /^Yes$/).should('be.visible').click({ force: true });
         });
