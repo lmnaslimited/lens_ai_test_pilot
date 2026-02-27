@@ -1210,7 +1210,8 @@ export class clActionFactory {
             "Create": clActionCreation,
             "Update": clActionUpdate
         }
-
+    // Rest parameter )...args) ensures extensibility by allowing future action classes
+    // to accept varying constructor dependencies without tightly coupling the factory.
     static createAction(iAction: string, iaActionData: TTactionsData, ...args:any): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
         if (!LAactionClass) {
