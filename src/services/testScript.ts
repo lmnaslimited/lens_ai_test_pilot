@@ -211,16 +211,10 @@ export class clTestRunnerUiService {
     this.resetContext();
   }
 
-  // Build structured log entries from captured logs and errors
+  // Build structured log entries from captured errors
   private buildLogEntries() {
-    // Transform captured success logs into standardized log objects
     // Transform captured error logs into standardized error objects
-    // Merge both informational and error logs into a single array
     return [
-      ...this.ldContext.capturedLogs.map((iMessage) => ({
-        type: "Log",  // Mark entry as informational log
-        message: iMessage, // Store original log message
-      })),
       ...this.ldContext.capturedErrors.map((iMessage) => ({
         type: "Error", // Mark entry as error log
         message: iMessage,  // Store original error message
@@ -239,55 +233,67 @@ export class clTestRunnerUiService {
   }
 
   // Create Run Log entry and update related Test Log child rows
-  private postAndUpdateRunLog(
+  protected postAndUpdateRunLog(
     idScriptRow: any,
     iName: string,
     laLogs: any[],
     lResult: string
   ) {
 
-    // Initiate Run Log creation via report service
-    this.ldReport
-      .postRunLog({
-        // Associate Run Log with test script ID
-        script_id: idScriptRow.test_script,
-        // Associate Run Log with master data reference
-        master_data_id: iName,
-        // Link Run Log to current Test Run session
-        test_run_id: Cypress.env("FETCHED_TEST_RUN"),
-        // Attach structured log entries
-        log_entries: laLogs,
-      })
-      // Process response after Run Log creation
-      .then((ldRunLogResponse: Cypress.Response<any>) => {
+    // Determine whether the test execution has failed
+    const LIsFailed = lResult === "Fail";
 
-        // Extract generated Run Log document ID
-        const LRunLogId = ldRunLogResponse.body.data.name;
+    // Fetch the full Test Run document in order to access
+    // the child table "test_log"
+    return this.ldReport.getTestRun().then(
+      (ldTestRunResponse: Cypress.Response<any>) => {
 
-        // Retrieve full Test Run document to access child table
-        return this.ldReport.getTestRun().then(
-          (ldTestRunResponse: Cypress.Response<any>) => {
+        // Identify matching child Test Log rows corresponding
+        // to the current script + master data + index
+        const laMatchingLogs =
+          ldTestRunResponse.body.data.test_log.filter(
+            (ldEntry: any) =>
+              ldEntry.test_script === idScriptRow.test_script &&
+              ldEntry.master_data === iName &&
+              Number(ldEntry.idx) === Number(idScriptRow.idx)
+          );
+      // Common function to update child rows
+        const updateChildRows = (runLogId: string | null) => {
+        const payload = {
+          result: LIsFailed ? "Fail" : "Pass",
+          run_log: runLogId,
+        };
 
-            // Filter child Test Log rows matching current script and master data
-            const laMatchingLogs =
-              ldTestRunResponse.body.data.test_log.filter(
-                (ldEntry: any) =>
-                  ldEntry.test_script === idScriptRow.test_script &&
-                  ldEntry.master_data === iName &&
-                  Number(ldEntry.idx) === Number(idScriptRow.idx)
-              );
+        return cy.wrap(laMatchingLogs).each((idEntry: any) => {
+            return this.ldReport.updateTestLog(idEntry.name, payload);
+          });
+      };
+      // PASS → just update result
+        if (!LIsFailed) {
+          return updateChildRows(null);
+        }
+     // FAIL without logs (uncaught error case)
+     // Still mark as Fail, but do not create Run Log
+        if (!laLogs?.length) {
+          return updateChildRows(null);
+        }
+        // FAIL with logs → create Run Log first
+        return this.ldReport
+          .postRunLog({
+            script_id: idScriptRow.test_script,      // Link to Test Script
+            master_data_id: iName,                   // Link to Master Data
+            test_run_id: Cypress.env("FETCHED_TEST_RUN"), // Current Test Run
+            log_entries: laLogs,                     // Captured error logs
+          })
+          .then((ldRunLogResponse: Cypress.Response<any>) => {
 
-            // Iterate through each matching Test Log row
-            laMatchingLogs.forEach((idEntry: any) => {
-              // Update Test Log row with Run Log reference and execution result
-              this.ldReport.updateTestLog(idEntry.name, {
-                run_log: LRunLogId,
-                result: lResult,
-              });
+            // Extract newly created Run Log document ID
+            const LRunLogId = ldRunLogResponse.body.data.name;
+
+              return updateChildRows(LRunLogId)
             });
-          }
-        );
-      });
+      }
+    );
   }
 
   // Reset execution state in context to prepare for next script
