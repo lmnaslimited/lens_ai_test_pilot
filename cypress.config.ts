@@ -3,6 +3,8 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 export default defineConfig({
+  experimentalMemoryManagement: true,
+  numTestsKeptInMemory: 0,
   e2e: {
 
   /**

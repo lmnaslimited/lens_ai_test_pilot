@@ -61,6 +61,15 @@ Why:
       contains: jest.fn(() => cyChain),
       filter: jest.fn(() => cyChain),
       and: jest.fn(() => cyChain),
+      each: jest.fn((cb: Function) => {
+    const fakeElements = [
+      { type: "checkbox1" },
+      { type: "checkbox2" }
+    ];
+
+    fakeElements.forEach(el => cb(el));
+    return cyChain; // allow chaining
+  })
     };
 
     cyMock = {

@@ -406,6 +406,20 @@ class clDataTypeTextEditor extends clDataType {
     }
 }
 
+/** @class clDataTypeInt - Handles Int fields. */
+export class clDataTypeInt extends clDataTypeData{
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+    }
+}
+
+/** @class clDataTypeFloat - Handles Float fields. */
+export class clDataTypeFloat extends clDataTypeData{
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+
+    }
+}
 
 /**
  * 
@@ -424,7 +438,9 @@ export class clDataTypeFactory {
         "Check": clDataTypecheck,
         "HTML": clDataTypeHTML,
         "Datetime": clDataTypeDatetime,
-        "Text Editor": clDataTypeTextEditor
+        "Text Editor": clDataTypeTextEditor,
+        "Int": clDataTypeInt,
+        "Float": clDataTypeFloat
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];

@@ -28,6 +28,7 @@ describe("LogCaptureService", () => {
     // This mimics the runtime state during a Cypress test execution
     ldContext = {
       currentScript: null,
+      currentScriptRowIdx:1,
       createdDocnames: [],
       storeDocname: [],
       createdDocsByIndex: [],
