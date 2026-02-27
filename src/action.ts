@@ -780,43 +780,193 @@ export class clActionApiGet extends clAction {
   }
 
   // Construct full endpoint URL using target host and path
-  protected buildEndpoint(): string {
-    const LTargetHost =
-      Cypress.env("TARGET_URL") ||
-      (() => {
-        throw new Error("API GET: TARGET_URL not configured.");
-      })();
+//   protected buildEndpoint(): string {
+//     const LTargetHost =
+//       Cypress.env("TARGET_URL") ||
+//       (() => {
+//         throw new Error("API GET: TARGET_URL not configured.");
+//       })();
 
-    let lPath =
-      this.actionRow.value?.trim() ||
-      (() => {
-        throw new Error("API GET: Endpoint missing in 'value' field.");
-      })();
+//     let lPath =
+//       this.actionRow.value?.trim() ||
+//       (() => {
+//         throw new Error("API GET: Endpoint missing in 'value' field.");
+//       })();
 
-    const LIsDynamic = lPath.includes("{{ dynamic_endpoint }}");
+//     // --- Resolve dynamic endpoint ---
+//     if (lPath.includes("{{ use_docname }}")) {
+//       const LdTestLabRow = this.findTestLabRow(
+//         this.ldContext.currentScript.name
+//       );
 
-    // --- Resolve dynamic endpoint ---
-    if (LIsDynamic) {
-      const LdTestLabRow = this.findTestLabRow(
-        this.ldContext.currentScript.name
-      );
+//       const LdStoredDoc = LdTestLabRow?.use_docname
+//         ? this.ldContext.storeDocname.find(
+//             (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
+//           )
+//         : undefined;
 
-      const LdStoredDoc = LdTestLabRow?.use_docname
-        ? this.ldContext.storeDocname.find(
-            (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
-          )
-        : undefined;
-
-      lPath = lPath.replace("{{ dynamic_endpoint }}", LdStoredDoc.docname);
-    }
+//       lPath = lPath.replace("{{ use_docname }}", LdStoredDoc.docname);
+//     }
+//     if (lPath.includes("{{ current_url }}")) {
+        
+//         const currentUrl = window.location.href;
+//         const cleanUrl = currentUrl.split("?")[0].replace(/\/$/, "");
+//         const segments = cleanUrl.split("/").filter(Boolean);
+//         const docname = segments.pop();
+//         lPath = lPath.replace("{{ current_url }}", docname);
+//       }
     
-    lPath = `/api/resource/${lPath}`;
+//     lPath = `/api/resource/${lPath}`;
 
-    const LQuery = this.actionRow.menus?.trim();
-    lPath += LQuery ? (lPath.includes("?") ? `&${LQuery}` : `?${LQuery}`) : "";
+//     const LQuery = this.actionRow.menus?.trim();
+//     lPath += LQuery ? (lPath.includes("?") ? `&${LQuery}` : `?${LQuery}`) : "";
 
-    return `${LTargetHost.replace(/\/$/, "")}${lPath}`;
+//     return `${LTargetHost.replace(/\/$/, "")}${lPath}`;
+//   }
+
+//Ayesa's code
+// protected buildEndpoint(): string {
+//     const LTargetHost = Cypress.env("TARGET_URL");
+//     if (!LTargetHost) throw new Error("API GET: TARGET_URL not configured.");
+  
+//     const LRawPath = this.actionRow.value?.trim();
+//     if (!LRawPath) throw new Error("API GET: Endpoint missing in 'value' field.");
+  
+//     // Dynamic token resolvers — easy to extend
+//     const LdTokenResolvers: Record<string, () => string> = {
+//       "{{ use_docname }}": () => {
+//         const LdTestLabRow = this.findTestLabRow(this.ldContext.currentScript.name);
+//         const LdStoredDoc = LdTestLabRow?.use_docname
+//           ? this.ldContext.storeDocname.find(
+//               (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
+//             )
+//           : undefined;
+//         if (!LdStoredDoc?.docname) throw new Error("Stored docname not found.");
+//         return LdStoredDoc.docname;
+//       },
+//       "{{ current_url }}": () => {
+//         const LCurrentPath = window.location.pathname;
+//         const LSegments = LCurrentPath.split("/").filter(Boolean);
+//         const LDocname = LSegments.pop();
+//         if (!LDocname || LDocname === 'app') {
+//             throw new Error(`API GET: Could not extract Docname. Current AUT Path: ${LCurrentPath}`);
+//         }
+//         return decodeURIComponent(LDocname);
+//       },
+//     };
+  
+//     const LTokenRegex = new RegExp(
+//         Object.keys(LdTokenResolvers).map((t) => t.replace(/[{}]/g, "\\$&")).join("|"),
+//         "g"
+//       );
+//     // Replace all tokens dynamically, no rigid structure
+//     const LResolvedPath = LRawPath.replace(LTokenRegex, (iMatch) => {
+//         const LResolver = LdTokenResolvers[iMatch];
+//         if (!LResolver) throw new Error(`No resolver defined for token: ${iMatch}`);
+//         return LResolver();
+//       });
+  
+//     // Construct full path
+//     const LPath = `/api/resource/${LResolvedPath}${this.actionRow.menus?.trim()
+//       ? `${LResolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
+//       : ""}`;
+  
+//     return `${LTargetHost.replace(/\/$/, "")}${LPath}`;
+//   }
+
+protected buildEndpoint(): Cypress.Chainable<string> {
+    const targetHost = Cypress.env("TARGET_URL");
+    if (!targetHost) {
+      throw new Error("API GET: TARGET_URL not configured.");
+    }
+  
+    const rawPath = this.actionRow.value?.trim();
+    const doctype = this.actionRow.assisting_doctype;
+  
+    if (!rawPath) {
+      throw new Error("API GET: Endpoint missing in 'value' field.");
+    }
+  
+    if (!doctype) {
+      throw new Error("API GET: assisting_doctype is missing.");
+    }
+  
+    // 🔥 Store resolver keys WITHOUT curly braces
+    const tokenResolvers: Record<string, () => Cypress.Chainable<string>> = {
+      use_docname: () => {
+        const testLabRow = this.findTestLabRow(
+          this.ldContext.currentScript.name
+        );
+  
+        const storedDoc = testLabRow?.use_docname
+          ? this.ldContext.storeDocname.find(
+              (item) =>
+                Number(item.idx) === Number(testLabRow.use_docname)
+            )
+          : undefined;
+  
+        if (!storedDoc?.docname) {
+          throw new Error("Stored docname not found.");
+        }
+  
+        return cy.wrap(storedDoc.docname);
+      },
+  
+      current_url: () => {
+        return cy.location("pathname").then((pathname: string) => {
+          const segments = pathname.split("/").filter(Boolean);
+          const docname = segments.pop();
+  
+          if (!docname || docname === "app") {
+            throw new Error(
+              `API GET: Could not extract Docname. Current AUT Path: ${pathname}`
+            );
+          }
+  
+          return decodeURIComponent(docname);
+        });
+      },
+    };
+  
+    // 🔥 Flexible token matcher (handles spaces safely)
+    const tokenPattern = /\{\{\s*(.*?)\s*\}\}/g;
+  
+    const resolveTokens = (path: string): Cypress.Chainable<string> => {
+      let chain: Cypress.Chainable<string> = cy.wrap(path);
+  
+      const matches = [...path.matchAll(tokenPattern)];
+  
+      matches.forEach((match) => {
+        const fullMatch = match[0];   // "{{ current_url }}"
+        const tokenName = match[1];   // "current_url"
+  
+        chain = chain.then((currentPath: string) => {
+          const resolver = tokenResolvers[tokenName];
+  
+          if (!resolver) {
+            throw new Error(`No resolver defined for token: ${tokenName}`);
+          }
+  
+          return resolver().then((resolvedValue: string) => {
+            return currentPath.replace(fullMatch, resolvedValue);
+          });
+        });
+      });
+  
+      return chain;
+    };
+  
+    return resolveTokens(rawPath).then((resolvedPath: string) => {
+      const queryString = this.actionRow.menus?.trim()
+        ? `${resolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
+        : "";
+  
+      const endpoint = `/api/resource/${doctype}/${resolvedPath}${queryString}`;
+  
+      return `${targetHost.replace(/\/$/, "")}${endpoint}`;
+    });
   }
+
 
   // Build expected response structure from action data
   protected buildExpectedPayload(): {
@@ -961,43 +1111,82 @@ export class clActionApiGet extends clAction {
   }
 
   // Execute API request and perform validation
-  executeAction(): void {
-    // Get first row as action configuration
-    this.actionRow = this.actionData[0];
+//   executeAction(): void {
+//     // Get first row as action configuration
+//     this.actionRow = this.actionData[0];
 
-    if (!this.actionRow) {
-      throw new Error("API Action: No action row provided.");
+//     if (!this.actionRow) {
+//       throw new Error("API Action: No action row provided.");
+//     }
+
+//     const LMethod = this.getMethod(); // Resolve HTTP method
+//     const LEndpoint = this.buildEndpoint(); // Build full endpoint URL
+
+//     cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
+
+//     cy.request({
+//       method: LMethod,
+//       url: LEndpoint,
+//       headers: this.getHeaders(), // Attach headers
+//       body: this.buildRequestBody(), // Attach request body if any
+//       failOnStatusCode: false, // Manually handle status validation
+//     }).then((idResponse: Cypress.Response<any>) => {
+//       // Validate response status code
+//       if (!this.getValidStatusCodes().includes(idResponse.status)) {
+//         throw new Error(`
+//             API ${LMethod} Failed
+//             Status Code: ${idResponse.status}
+//             Response Body: ${JSON.stringify(idResponse.body, null, 2)}
+//           `);
+//       }
+
+//       // Perform response validation if enabled
+//       if (this.shouldValidateResponse()) {
+//         this.validateResponse(idResponse, LEndpoint);
+//       }
+
+//       cy.log(`API ${LMethod} Completed Successfully`);
+//     });
+//   }
+    executeAction(): void {
+        // Get first row as action configuration
+        this.actionRow = this.actionData[0];
+
+        if (!this.actionRow) {
+            throw new Error("API Action: No action row provided.");
+        }
+
+        const method = this.getMethod(); // Resolve HTTP method
+
+        // buildEndpoint now returns Cypress.Chainable<string>
+        this.buildEndpoint().then((endpoint: string) => {
+            cy.log(`Executing API ${method}: ${endpoint}`);
+
+            cy.request({
+                method,
+                url: endpoint,
+                headers: this.getHeaders(),       // Attach headers
+                body: this.buildRequestBody(),    // Attach request body if any
+                failOnStatusCode: false,          // Manually handle status validation
+            }).then((response: Cypress.Response<any>) => {
+                // Validate response status code
+                if (!this.getValidStatusCodes().includes(response.status)) {
+                    throw new Error(`
+                        API ${method} Failed
+                        Status Code: ${response.status}
+                        Response Body: ${JSON.stringify(response.body, null, 2)}
+                    `);
+                }
+
+                // Perform response validation if enabled
+                if (this.shouldValidateResponse()) {
+                    this.validateResponse(response, endpoint);
+                }
+
+                cy.log(`API ${method} Completed Successfully`);
+            });
+        });
     }
-
-    const LMethod = this.getMethod(); // Resolve HTTP method
-    const LEndpoint = this.buildEndpoint(); // Build full endpoint URL
-
-    cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
-
-    cy.request({
-      method: LMethod,
-      url: LEndpoint,
-      headers: this.getHeaders(), // Attach headers
-      body: this.buildRequestBody(), // Attach request body if any
-      failOnStatusCode: false, // Manually handle status validation
-    }).then((idResponse: Cypress.Response<any>) => {
-      // Validate response status code
-      if (!this.getValidStatusCodes().includes(idResponse.status)) {
-        throw new Error(`
-            API ${LMethod} Failed
-            Status Code: ${idResponse.status}
-            Response Body: ${JSON.stringify(idResponse.body, null, 2)}
-          `);
-      }
-
-      // Perform response validation if enabled
-      if (this.shouldValidateResponse()) {
-        this.validateResponse(idResponse, LEndpoint);
-      }
-
-      cy.log(`API ${LMethod} Completed Successfully`);
-    });
-  }
 }
 
   // API PUT Action Class
