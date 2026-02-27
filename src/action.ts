@@ -4,7 +4,8 @@ import { fnGetDelay } from "../src/delay";
 import { ifActionHandler, ifDataType, TTactionsData, TactionData,
     TtestHeaderData, TtestLabScript,
     ifConnection,
-    ifTestAction
+    ifTestAction,
+    ifTestContext
  } from "./types"
 
 /** @class clAction - Base abstract class for executing actions on data fields. */
@@ -600,8 +601,6 @@ export class clActionValidateEmailAttachments extends clAction {
     }
 }
 
-
-
 /**
  * Action Class: clActionValidateAlert
  *
@@ -730,9 +729,405 @@ export class clActionValidateAlert extends clAction {
     }
 }
 
+export class clActionApiGet extends clAction {
+  ldContext: ifTestContext;
+  ldTestLab: any;
+
+  constructor(
+    iAction: string,
+    iaActionData: TTactionsData,
+    idContext: ifTestContext,
+    idTestLab: any
+  ) {
+    super(iAction, iaActionData);
+    this.ldContext = idContext;
+    this.ldTestLab = idTestLab;
+  }
+
+  // Return HTTP method for this action
+  protected getMethod(): Cypress.HttpMethod {
+    return "GET";
+  }
+
+  // Return request headers
+  protected getHeaders(): Record<string, any> {
+    return {};
+  }
+
+  // Define valid HTTP status codes
+  protected getValidStatusCodes(): number[] {
+    return [200];
+  }
+
+  // Control whether response validation should execute
+  protected shouldValidateResponse(): boolean {
+    return true;
+  }
+
+  // Return request body (GET has no body)
+  protected buildRequestBody(): Record<string, any> | undefined {
+    return undefined;
+  }
+
+  // Locate matching Test Lab configuration row by master data name
+  private findTestLabRow(iMasterDataName: string) {
+    // Search test_lab_script array for matching master_data field
+    return this.ldTestLab.test_lab_script.find(
+      (idRow: any) =>
+        idRow.master_data === iMasterDataName &&
+        idRow.idx === this.ldContext.currentScriptRowIdx
+    );
+  }
+
+// Builds API endpoint dynamically instead of hardcoding URLs,
+// so test steps can remain configuration-driven and reusable.
+protected buildEndpoint(): Cypress.Chainable<string> {
+    // Get target host from Cypress environment configuration
+    const LTargetHost = Cypress.env("TARGET_URL");
+    // Throw error if TARGET_URL is not configured
+    if (!LTargetHost) {
+      throw new Error("API: TARGET_URL not configured.");
+    }
+    // Endpoint path is stored in Test Case configuration,
+    // so testers can control behavior without changing code.
+    const LRawPath = this.actionRow.value?.trim();
+    // Doctype is required because resource APIs
+    // are always structured as /api/resource/{Doctype}/{name}
+    const LDoctype = this.actionRow.assisting_doctype;
+
+    // Validate that endpoint path exists
+    if (!LRawPath) {
+      throw new Error("API: Endpoint missing in 'value' field.");
+    }
+    
+    // Validate that doctype is provided
+    if (!LDoctype) {
+      throw new Error("API: assisting_doctype is missing.");
+    }
+  
+    // Token resolvers allow dynamic runtime values inside endpoint,
+    // making test cases state-aware instead of static.
+    const LdEndpointResolvers: Record<string, () => Cypress.Chainable<string>> = {
+        // Allows API to reference a document created in a previous step.
+        // This enables connected test flows (create → update → validate).
+      use_docname: () => {
+        // Get the current Test Lab information
+        const LdTestLabRow = this.findTestLabRow(
+          this.ldContext.currentScript.name
+        );
+  
+        // extract the use_docname value from test lab
+        // and get the document name stored in context
+        const LdStoredDoc = LdTestLabRow?.use_docname
+          ? this.ldContext.storeDocname.find(
+              (item) =>
+                Number(item.idx) === Number(LdTestLabRow.use_docname)
+            )
+          : undefined;
+  
+        if (!LdStoredDoc?.docname) {
+          throw new Error("Stored docname not found.");
+        }
+  
+        return cy.wrap(LdStoredDoc.docname);
+      },
+  
+       // Allows API to act on the document currently open in UI.
+       // This keeps UI + API validations synchronized.
+      current_url: () => {
+        // get the current processing documnet name
+        return cy.location("pathname").then((pathname: string) => {
+          const LSegments = pathname.split("/").filter(Boolean);
+          const LDocname = LSegments.pop();
+  
+          if (!LDocname || LDocname === "app") {
+            throw new Error(
+              `API: Could not extract Docname. Current AUT Path: ${pathname}`
+            );
+          }
+  
+          return decodeURIComponent(LDocname);
+        });
+      },
+    };
+  
+    // Regex allows flexible token spacing,
+    // so configuration mistakes (extra spaces) don’t break execution.
+    const LEndpointPattern = /\{\{\s*(.*?)\s*\}\}/g;
+  
+    // This resolver function ensures path replacement happens
+    // in Cypress chain order, preventing async timing issues.
+    const LResolveEndpoint = (iPath: string): Cypress.Chainable<string> => {
+      let LChain: Cypress.Chainable<string> = cy.wrap(iPath);
+  
+      const LaMatches = [...iPath.matchAll(LEndpointPattern)];
+  
+      LaMatches.forEach((iaMatch) => {
+        const LFullMatch = iaMatch[0];   // "{{ current_url }}"
+        const LEndpointName = iaMatch[1];   // "current_url"
+  
+        LChain = LChain.then((iCurrentPath: string) => {
+          const LResolver = LdEndpointResolvers[LEndpointName];
+        
+          // We explicitly fail fast if unsupported token is used,
+          // preventing silent logical errors in test configuration.
+          if (!LResolver) {
+            throw new Error(`No resolver defined for token: ${LEndpointName}`);
+          }
+  
+          return LResolver().then((iResolvedValue: string) => {
+            return iCurrentPath.replace(LFullMatch, iResolvedValue);
+          });
+        });
+      });
+  
+      return LChain;
+    };
+  
+    // Final construction ensures:
+    // - Query parameters are appended safely
+    // - URL formatting stays consistent
+    // - Trailing slash issues are avoided
+    return LResolveEndpoint(LRawPath).then((iResolvedPath: string) => {
+      const LQueryString = this.actionRow.menus?.trim()
+        ? `${iResolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
+        : "";
+  
+      const LEndpoint = `/api/resource/${LDoctype}/${iResolvedPath}${LQueryString}`;
+  
+      return `${LTargetHost.replace(/\/$/, "")}${LEndpoint}`;
+    });
+  }
+
+
+  // Build expected response structure from action data
+  protected buildExpectedPayload(): {
+    LdFlatFields: Record<string, any>;
+    LdGroupedFields: Record<string, any[]>;
+  } {
+    const LdFlatFields: Record<string, any> = {}; // Store parent-level expected fields
+    const LdGroupedFields: Record<string, any[]> = {}; // Store child table expectations
+
+    this.actionData.slice(1).forEach((row) => {
+      if (!row.field_name) return; // Skip rows without field name
+
+      const LChildIndex = row.child_index;
+      const LTableName = row.child_name;
+
+      // Inline datatype conversion
+      // to support int and float
+      let LValue: any =
+        row.data_type === "Int"
+          ? Number(row.value)
+          : row.data_type === "Float" || row.data_type === "Currency"
+          ? parseFloat(row.value)
+          : row.value;
+
+      // Assign flat field (Parent Fields) expectation
+      if (!LChildIndex) {
+        LdFlatFields[row.field_name] = LValue;
+        return;
+      }
+
+      // Initialize child table array if missing
+      if (!LdGroupedFields[LTableName]) {
+        LdGroupedFields[LTableName] = [];
+      }
+
+      // Initialize child row object if missing
+      if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
+        LdGroupedFields[LTableName][LChildIndex - 1] = {};
+      }
+
+      // Assign expected child field value
+      LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
+    });
+
+    return { LdFlatFields, LdGroupedFields };
+  }
+
+  // Validate API response against expected payload
+  protected validateResponse(
+    idResponse: Cypress.Response<any>,
+    iEndpoint: string
+  ): void {
+    // Ensure response contains expected data structure
+    if (!idResponse.body || !idResponse.body.data) {
+      throw new Error(`
+        Invalid response structure.
+        Full Response: ${JSON.stringify(idResponse.body, null, 2)}
+        `);
+    }
+
+    // Normalize response data (array or object)
+    const LdResponseData = Array.isArray(idResponse.body.data)
+      ? idResponse.body.data[0]
+      : idResponse.body.data;
+
+    // Build expectations
+    const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
+
+    this.validateFlatFields(LdResponseData, LdFlatFields, iEndpoint);
+    this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+  }
+
+  // Validate top-level (Parent Field) response fields
+  private validateFlatFields(
+    idResponseData: any,
+    idFlatFields: Record<string, any>,
+    iEndpoint: string
+  ): void {
+    Object.entries(idFlatFields).forEach(([LField, LExpected]) => {
+      if (!(LField in idResponseData)) {
+        throw new Error(`
+            Field Missing: ${LField}
+            Available Keys: ${Object.keys(idResponseData).join(", ")}
+          `);
+      }
+
+      const LActual = idResponseData[LField]; // Extract actual value
+
+      if (LActual != LExpected) {
+        throw new Error(`
+            Validation Failed
+            Field: ${LField}
+            Expected: ${LExpected}
+            Actual: ${LActual}
+            Endpoint: ${iEndpoint}
+          `);
+      }
+
+      cy.log(`✔ ${LField} : ${LActual}`);
+    });
+  }
+
+  // Validate child table response fields
+  private validateGroupedFields(
+    idResponseData: any,
+    idGroupedFields: Record<string, any[]>,
+    iEndpoint: string
+  ): void {
+    Object.entries(idGroupedFields).forEach(([LTableName, LaExpectedRows]) => {
+      const LaResponseArray = idResponseData[LTableName]; // Extract child table array
+
+      if (!Array.isArray(LaResponseArray)) {
+        throw new Error(`Child Table Missing or Not Array: ${LTableName}`);
+      }
+
+      LaExpectedRows.forEach((LdExpectedRow, LIndex) => {
+        const LdActualRow = LaResponseArray[LIndex]; // Extract actual row
+
+        if (!LdActualRow) {
+          throw new Error(`Missing row ${LIndex + 1} in ${LTableName}`);
+        }
+
+        Object.entries(LdExpectedRow).forEach(([LField, LExpected]) => {
+          if (LdActualRow[LField] != LExpected) {
+            throw new Error(`
+                Child Table Validation Failed
+                Table: ${LTableName}
+                Row: ${LIndex + 1}
+                Field: ${LField}
+                Expected: ${LExpected}
+                Actual: ${LdActualRow[LField]}
+                Endpoint: ${iEndpoint}
+              `);
+          }
+
+          cy.log(
+            `✔ ${LTableName}[${LIndex + 1}].${LField} : ${LdActualRow[LField]}`
+          );
+        });
+      });
+    });
+  }
+
+    executeAction(): void {
+        // Get first row as action configuration
+        this.actionRow = this.actionData[0];
+
+        if (!this.actionRow) {
+            throw new Error("API Action: No action row provided.");
+        }
+
+        const method = this.getMethod(); // Resolve HTTP method
+
+        // buildEndpoint now returns Cypress.Chainable<string>
+        this.buildEndpoint().then((endpoint: string) => {
+            cy.log(`Executing API ${method}: ${endpoint}`);
+
+            cy.request({
+                method,
+                url: endpoint,
+                headers: this.getHeaders(),       // Attach headers
+                body: this.buildRequestBody(),    // Attach request body if any
+                failOnStatusCode: false,          // Manually handle status validation
+            }).then((response: Cypress.Response<any>) => {
+                // Validate response status code
+                if (!this.getValidStatusCodes().includes(response.status)) {
+                    throw new Error(`
+                        API ${method} Failed
+                        Status Code: ${response.status}
+                        Response Body: ${JSON.stringify(response.body, null, 2)}
+                    `);
+                }
+
+                // Perform response validation if enabled
+                if (this.shouldValidateResponse()) {
+                    this.validateResponse(response, endpoint);
+                }
+
+                cy.log(`API ${method} Completed Successfully`);
+            });
+        });
+    }
+}
+
+  // API PUT Action Class
+  // Used to perform document update operations via API
+  // Inherits endpoint construction and execution flow from API GET action
+  export class clActionApiPut extends clActionApiGet{
+    // Override HTTP method to execute an UPDATE request
+    protected getMethod(): Cypress.HttpMethod {
+        return "PUT";
+    }
+    // Define acceptable success status codes for PUT
+    // 200 → Successfully updated existing document
+    // 201 → Resource created/updated depending on backend behavior
+    protected getValidStatusCodes(): number[] {
+        return [200, 201];
+      }
+    // Disable response validation for PUT
+    // Functional purpose: focus on successful update confirmation
+    // without validating returned payload structure
+    protected shouldValidateResponse(): boolean {
+        return false;
+    }
+    // Provide required headers for authenticated API update execution
+    // Includes authorization token and JSON content format
+    protected getHeaders(): Record<string, any> {
+        return {
+          "Authorization": Cypress.env("TARGET_KEY"),
+          "Cookie":
+            "full_name=Guest; sid=Guest; system_user=no; user_id=Guest; user_image=",
+          "Content-Type": "application/json",
+        };
+    }
+    // Build request body for update operation
+    // Converts configured Master Data fields into API-compatible JSON payload
+    protected buildRequestBody(): Record<string, any> {
+        // Get structured data from master mapping
+        const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
+        // Merge parent and child fields into single payload
+        return {
+            ...LdFlatFields,
+            ...LdGroupedFields
+        };
+    }
+  }
+  
 // abstract class for Test SCript Header level
-// to determin Create or UPdate on UI test and
-// GET, PUT, POST on API test
+// to determin Create or UPdate
 abstract class clTestAction implements ifTestAction {
     testScripts: TtestHeaderData;
     doctype: string
@@ -779,7 +1174,7 @@ export class clActionUpdate extends clTestAction {
 /** @class clActionFactory - Factory for creating action instances */
 export class clActionFactory {
     private static actionsMap: {
-        [key: string]: new (iAction: string, iaActionData: TTactionsData) => clAction
+        [key: string]: new (iAction: string, iaActionData: TTactionsData, ...args:any) => clAction
     } = {
             "Onload": clActionOnLoad,
             "On Change": clActionOnChange,
@@ -803,7 +1198,9 @@ export class clActionFactory {
             "Validate Breadcrumbs": clActionBreadcrumbs,
             "Button Visibility": clActionValidateButton,
             "Validate Email Attachments": clActionValidateEmailAttachments,
-            "Validate Alert": clActionValidateAlert
+            "Validate Alert": clActionValidateAlert,
+            "API GET": clActionApiGet,
+            "API PUT": clActionApiPut
         };
 
     /** Action mentioned in the Test Script Header fields */
@@ -813,13 +1210,14 @@ export class clActionFactory {
             "Create": clActionCreation,
             "Update": clActionUpdate
         }
-
-    static createAction(iAction: string, iaActionData: TTactionsData): ifActionHandler {
+    // Rest parameter )...args) ensures extensibility by allowing future action classes
+    // to accept varying constructor dependencies without tightly coupling the factory.
+    static createAction(iAction: string, iaActionData: TTactionsData, ...args:any): ifActionHandler {
         const LAactionClass = this.actionsMap[iAction];
         if (!LAactionClass) {
             throw new Error(`Invalid action type: ${iAction}`);
         }
-        return new LAactionClass(iAction = iAction, iaActionData = iaActionData);
+        return new LAactionClass(iAction = iAction, iaActionData = iaActionData, ...args);
     }
     static filterActionData(iaActionsData: TTactionsData, iActionRow: TactionData): TTactionsData {
         const LposNext = iActionRow.pos + 10;

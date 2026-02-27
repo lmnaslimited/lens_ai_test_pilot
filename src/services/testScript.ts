@@ -4,174 +4,20 @@ import { ifTestContext, ifTestRunner } from "../types";
 import { clAuthService } from "./authService";
 import { clReportService } from "./reportService";
 
-
-// Base Test Runner Service
-// Provides shared execution and finalization behavior for all test runner types
-export abstract class clTestRunnerService implements ifTestRunner {
-
-  // Constructor initializes shared dependencies required by all runners
-  constructor(
-    protected ldContext: ifTestContext,  // Holds runtime execution state (logs, errors, script reference)
-    protected ldReport: clReportService, // Service responsible for posting and updating run logs
-    protected ldTestLabData: any,        // Cached Test Lab configuration used for script mapping
-    protected lTargetUrl: string,        // Base backend URL for execution
-    protected ldAuth: clAuthService,     // Authentication service for login/logout
-    protected ldLoginData: any           // Script-wise login credential mapping
-  ) {}
-
-  // Abstract method enforcing subclasses (UI/API) to implement execution logic
-  abstract executeScript(idScript: any): void;
-
-  // Finalizes execution of the currently active script
-  finalizeScript() {
-
-    // Prevent execution if no script is currently stored in context
-    if (!this.ldContext.currentScript) return;
-
-    // Combine captured logs and errors into a structured log array
-    const LdLogs = this.buildLogEntries();
-
-    // Determine overall result based on context pass/fail state
-    const LdResult = this.ldContext.isTestPassed ? "Pass" : "Fail";
-
-    // Resolve script names in case multiple scripts are combined using '&'
-    const LaScriptNames = this.resolveScriptNames(
-      this.ldContext.currentScript.name
-    );
-
-    // Iterate through each resolved script name
-    LaScriptNames.forEach((iName) => {
-      
-      // Locate the corresponding Test Lab row using master data name
-      const LdScriptRow = this.findTestLabRow(iName);
-      // Skip processing if no matching Test Lab configuration is found
-      if (!LdScriptRow) return;
-      
-      // Create run log entry and update associated Test Log child records
-      this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
-      this.ldContext.currentScriptRowIdx++;
-    });
-
-    // Clear execution state to prepare context for next script
-    this.resetContext();
-  }
-
-  // Build structured log entries from captured logs and errors
-  protected buildLogEntries() {
-    // Transform captured success logs into standardized log objects
-    // Transform captured error logs into standardized error objects
-    // Merge both informational and error logs into a single array
-    return [
-      ...this.ldContext.capturedLogs.map((iMessage) => ({
-        type: "Log",  // Mark entry as informational log
-        message: iMessage, // Store original log message
-      })),
-      ...this.ldContext.capturedErrors.map((iMessage) => ({
-        type: "Error", // Mark entry as error log
-        message: iMessage,  // Store original error message
-      })),
-    ];
-  }
-
-  // Resolve script names, supporting multiple combined names separated by "&"
-  protected resolveScriptNames(iName: string): string[] {
-    // Check if script name contains multiple entries
-    // If multiple scripts exist, split and trim each name
-    // Otherwise return single script name as array
-    return iName.includes("&")
-      ? iName.split("&").map((iTrim) => iTrim.trim())
-      : [iName];
-  }
-
-  // Locate matching Test Lab configuration row by master data name
-  protected findTestLabRow(iMasterDataName: string) {
-    // Search test_lab_script array for matching master_data field
-    return this.ldTestLabData.test_lab_script.find(
-      (idRow: any) => idRow.master_data === iMasterDataName && idRow.idx === this.ldContext.currentScriptRowIdx
-    );
-  }
-
-  // Create Run Log entry and update related Test Log child rows
-  protected postAndUpdateRunLog(
-    idScriptRow: any,
-    iName: string,
-    laLogs: any[],
-    lResult: string
-  ) {
-
-    // Initiate Run Log creation via report service
-    this.ldReport
-      .postRunLog({
-        // Associate Run Log with test script ID
-        script_id: idScriptRow.test_script,
-        // Associate Run Log with master data reference
-        master_data_id: iName,
-        // Link Run Log to current Test Run session
-        test_run_id: Cypress.env("FETCHED_TEST_RUN"),
-        // Attach structured log entries
-        log_entries: laLogs,
-      })
-      // Process response after Run Log creation
-      .then((ldRunLogResponse: Cypress.Response<any>) => {
-
-        // Extract generated Run Log document ID
-        const LRunLogId = ldRunLogResponse.body.data.name;
-
-        // Retrieve full Test Run document to access child table
-        return this.ldReport.getTestRun().then(
-          (ldTestRunResponse: Cypress.Response<any>) => {
-
-            // Filter child Test Log rows matching current script and master data
-            const laMatchingLogs =
-              ldTestRunResponse.body.data.test_log.filter(
-                (ldEntry: any) =>
-                  ldEntry.test_script === idScriptRow.test_script &&
-                  ldEntry.master_data === iName &&
-                  Number(ldEntry.idx) === Number(idScriptRow.idx)
-              );
-
-            // Iterate through each matching Test Log row
-            laMatchingLogs.forEach((idEntry: any) => {
-              // Update Test Log row with Run Log reference and execution result
-              this.ldReport.updateTestLog(idEntry.name, {
-                run_log: LRunLogId,
-                result: lResult,
-              });
-            });
-          }
-        );
-      });
-  }
-
-  // Reset execution state in context to prepare for next script
-  protected resetContext() {
-    // Clear captured error messages
-    this.ldContext.capturedErrors = [];
-    // Clear captured informational logs
-    this.ldContext.capturedLogs = [];
-    // Reset pass/fail status to default true
-    this.ldContext.isTestPassed = true;
-    // Remove reference to current executing script
-    this.ldContext.currentScript = null;
-  }
-}
-
 // UI Test Runner Service
 // Handles complete UI-based test execution lifecycle
-export class clTestRunnerUiService extends clTestRunnerService {
+export class clTestRunnerUiService {
 
   // Constructor injects UI-specific dependencies along with shared base dependencies
   constructor(
-    ldContext: ifTestContext,                // Runtime execution context
-    ldAuth: clAuthService,                   // Authentication service for login/logout
-    ldReport: clReportService,               // Reporting service
-    lTargetUrl: string,                      // Base application URL
-    ldTestLabData: any,                      // Test Lab configuration data
+    protected ldContext: ifTestContext,                // Runtime execution context
+    protected ldAuth: clAuthService,                   // Authentication service for login/logout
+    protected ldReport: clReportService,               // Reporting service
+    protected lTargetUrl: string,                      // Base application URL
+    protected ldTestLabData: any,                      // Test Lab configuration data
     private readonly ldMestMasterData: any,  // Master data for UI execution
-    ldLoginData: any                         // Script-wise login credential mapping
-  ) {
-    super(ldContext, ldReport, ldTestLabData, lTargetUrl, ldAuth, ldLoginData); // Call base constructor
-  }
+    protected ldLoginData: any                         // Script-wise login credential mapping
+  ) {}
 
   // Main entry method to execute a UI script
   executeScript(idScript: any) {
@@ -215,6 +61,14 @@ export class clTestRunnerUiService extends clTestRunnerService {
   // Navigate to the main application page after login
   private visitApplication() {
     cy.visit(`${this.lTargetUrl}/app`);
+  }
+
+  // Locate matching Test Lab configuration row by master data name
+  private findTestLabRow(iMasterDataName: string) {
+    // Search test_lab_script array for matching master_data field
+    return this.ldTestLabData.test_lab_script.find(
+      (idRow: any) => idRow.master_data === iMasterDataName && idRow.idx === this.ldContext.currentScriptRowIdx
+    );
   }
 
   // Inject previously stored document name into script before execution
@@ -271,7 +125,7 @@ export class clTestRunnerUiService extends clTestRunnerService {
         );
 
         // Create action instance dynamically and execute it
-        clActionFactory.createAction(idRow.action, LdData).executeAction();
+        clActionFactory.createAction(idRow.action, LdData, this.ldContext, this.ldTestLabData).executeAction();
       });
   }
 
@@ -303,6 +157,7 @@ export class clTestRunnerUiService extends clTestRunnerService {
     // Read current browser URL after execution
     cy.url().then((iUrl: string) => {
       // Extract document identifier from URL path
+      if(!iUrl) {return}
       const docname = this.extractDocnameFromUrl(iUrl);
       // Skip if extraction failed
       if (!docname) return;
@@ -322,231 +177,128 @@ export class clTestRunnerUiService extends clTestRunnerService {
     // Return last non-empty segment
     return LParts.pop() || LParts.pop();
   }
+  // Finalizes execution of the currently active script
+  finalizeScript() {
 
-}
+    // Prevent execution if no script is currently stored in context
+    if (!this.ldContext.currentScript) return;
 
-// API Test Runner Service
-// Responsible for executing API-based test scripts
-export class clTestRunnerApiService extends clTestRunnerService {
+    // Combine captured logs and errors into a structured log array
+    const LdLogs = this.buildLogEntries();
 
-  // Constructor injects API-specific dependencies along with shared base services
-  constructor(
-    ldContext: ifTestContext,             // Runtime execution context (logs, state, script ref)
-    lTargetUrl: string,                   // Base backend URL for API execution
-    ldLoginData: any,                     // Script-wise credential mapping
-    ldAuth: clAuthService,                // Authentication service for login/logout
-    ldTestLabData: any,                   // Test Lab configuration data
-    ldReport: clReportService             // Reporting service for run logs
-  ) {
-    super(ldContext, ldReport, ldTestLabData, lTargetUrl, ldAuth, ldLoginData); // Initialize base runner
-  }
+    // Determine overall result based on context pass/fail state
+    const LdResult = this.ldContext.isTestPassed ? "Pass" : "Fail";
 
-  // Main method to execute API script
-  executeScript(idScript: any) {
+    // Resolve script names in case multiple scripts are combined using '&'
+    const LaScriptNames = this.resolveScriptNames(
+      this.ldContext.currentScript.name
+    );
 
-    // Store currently executing script in shared context
-    this.ldContext.currentScript = idScript;
-
-    // Fetch credentials mapped to script name
-    const LdCreds = this.ldLoginData[idScript.name];
-    // Stop execution if credentials are missing
-    if (!LdCreds) {
-      throw new Error(`No login credentials for ${idScript.name}`);
-    }
-
-    // Delegate execution to API builder factory
-    ApiBuilderFactory.execute({
-      ldAuth: this.ldAuth,
-      lTargetUrl: this.lTargetUrl, // Backend base URL
-      ldScript: idScript,           // Script configuration
-      ldAuthendication: {
-        lUser: LdCreds.email,      // Username for authentication
-        lPassword: LdCreds.password,   // Password for authentication
-      },
-      ldContext: this.ldContext,    // Shared execution context
+    // Iterate through each resolved script name
+    LaScriptNames.forEach((iName) => {
+      
+      // Locate the corresponding Test Lab row using master data name
+      const LdScriptRow = this.findTestLabRow(iName);
+      // Skip processing if no matching Test Lab configuration is found
+      if (!LdScriptRow) return;
+      
+      // Create run log entry and update associated Test Log child records
+      this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
+      this.ldContext.currentScriptRowIdx++;
     });
-  }
-}
 
-// Factory responsible for constructing and executing API requests dynamically
-class ApiBuilderFactory {
-
-  // Entry method to execute API flow
-  static execute({
-    ldAuth,
-    lTargetUrl,
-    ldScript,
-    ldAuthendication,
-    ldContext,
-  }: {
-    ldAuth: clAuthService;
-    lTargetUrl: string;
-    ldScript: any;
-    ldAuthendication: { lUser: string; lPassword: string };
-    ldContext: ifTestContext;
-  }) {
-
-    // Perform login before executing actual API
-    ldAuth.login(ldAuthendication.lUser, ldAuthendication.lPassword).then(() => {
-
-      // Dynamically construct request URL
-      const url = this.buildUrl(lTargetUrl, ldScript);
-      // Build request payload if applicable
-      const LdPayload = this.buildPayload(ldScript);
-
-      // Prepare Cypress request configuration
-      const LdRequestOptions: Partial<Cypress.RequestOptions> = {
-        method: ldScript.action,    // HTTP method (GET, POST, PUT, DELETE)
-        url,                        // Fully constructed endpoint
-        failOnStatusCode: false,    // Allow manual status validation
-      };
-
-      // Attach body only for non-GET requests
-      if (ldScript.action !== "GET" && LdPayload) {
-        LdRequestOptions.body = LdPayload;
-      }
-
-      // Execute API request
-      cy.request(LdRequestOptions as Cypress.RequestOptions)
-        .then((idResponse: Cypress.Response<any>) => {
-
-          // Validate response after execution
-          this.validateResponse(ldScript, idResponse, LdPayload, ldContext);
-        });
-    });
+    // Clear execution state to prepare context for next script
+    this.resetContext();
   }
 
-  // Construct API endpoint dynamically based on script configuration
-  private static buildUrl(iTargetUrl: string, idScript: any): string {
-
-    const lEndpointType = idScript.actual_test_data?.[0]?.value; // resource / method
-    const lDoctype = idScript.doctype_to_be_tested;
-    const lDocument = idScript.document;
-  
-    let lUrl = `${iTargetUrl}/api/${lEndpointType}`;
-  
-    // For resource APIs append doctype
-    if (lEndpointType === "resource" && lDoctype) {
-      lUrl += `/${lDoctype}`;
-    }
-  
-    // Append document if exists
-    if (lDocument) {
-      lUrl += `/${lDocument}`;
-    }
-  
-    // Append query params from message
-    lUrl += this.buildParams(idScript.actual_test_data?.[0]?.message);
-  
-    return lUrl;
+  // Build structured log entries from captured logs and errors
+  private buildLogEntries() {
+    // Transform captured success logs into standardized log objects
+    // Transform captured error logs into standardized error objects
+    // Merge both informational and error logs into a single array
+    return [
+      ...this.ldContext.capturedLogs.map((iMessage) => ({
+        type: "Log",  // Mark entry as informational log
+        message: iMessage, // Store original log message
+      })),
+      ...this.ldContext.capturedErrors.map((iMessage) => ({
+        type: "Error", // Mark entry as error log
+        message: iMessage,  // Store original error message
+      })),
+    ];
   }
 
-  // Normalize query parameters by ensuring proper prefix
-  private static buildParams(iParams?: string): string {
-    // Return empty string if no parameters defined
-    if (!iParams) return "";
-    // Return as-is if already prefixed with '?'
-    if (iParams.startsWith("?")) return iParams;
-    // Otherwise prefix with '?'
-    return `?${iParams}`;
+  // Resolve script names, supporting multiple combined names separated by "&"
+  private resolveScriptNames(iName: string): string[] {
+    // Check if script name contains multiple entries
+    // If multiple scripts exist, split and trim each name
+    // Otherwise return single script name as array
+    return iName.includes("&")
+      ? iName.split("&").map((iTrim) => iTrim.trim())
+      : [iName];
   }
 
-  // Build request payload from script test data
-  private static buildPayload(script: any) {
-    // Extract description field from first test data row
-    const ldDesc = script.actual_test_data?.[0]?.description;
-    // Return undefined if no payload provided
-    if (!ldDesc) return undefined;
-    // Parse JSON string if necessary, otherwise return object directly
-    return typeof ldDesc === "string" ? JSON.parse(ldDesc) : ldDesc;
-  }
-
-  // Validate API response and update execution context
-  private static validateResponse(
-    idScript: any,
-    idResponse: Cypress.Response<any>,
-    idPayload: any,
-    idContext: ifTestContext
+  // Create Run Log entry and update related Test Log child rows
+  private postAndUpdateRunLog(
+    idScriptRow: any,
+    iName: string,
+    laLogs: any[],
+    lResult: string
   ) {
 
-    // Fail execution if HTTP status indicates error
-    if (idResponse.status >= 400) {
-      // Prepare failure message
-      const LFailureMessage = `API ${idScript.action} failed for ${idScript.name}`;
-      // Log failure in Cypress UI
-      cy.log(LFailureMessage);
-      // Mark test context as failed
-      idContext.isTestPassed = false;
-      // Store error in context for reporting
-      idContext.capturedErrors.push(LFailureMessage);
-      // Throw error to stop execution
-      throw new Error(LFailureMessage);
-    }
+    // Initiate Run Log creation via report service
+    this.ldReport
+      .postRunLog({
+        // Associate Run Log with test script ID
+        script_id: idScriptRow.test_script,
+        // Associate Run Log with master data reference
+        master_data_id: iName,
+        // Link Run Log to current Test Run session
+        test_run_id: Cypress.env("FETCHED_TEST_RUN"),
+        // Attach structured log entries
+        log_entries: laLogs,
+      })
+      // Process response after Run Log creation
+      .then((ldRunLogResponse: Cypress.Response<any>) => {
 
-    // Determine validation target based on API type
-    const lEndpointType = idScript.value;
+        // Extract generated Run Log document ID
+        const LRunLogId = ldRunLogResponse.body.data.name;
 
-    const LdActualRow =
-      lEndpointType === "resource"
-        ? idResponse.body.data?.[0]
-        : idResponse.body.message;
+        // Retrieve full Test Run document to access child table
+        return this.ldReport.getTestRun().then(
+          (ldTestRunResponse: Cypress.Response<any>) => {
 
-        // Perform field-level validation for GET requests
-    if (idScript.action === "GET" && idPayload && LdActualRow) {
-      // Compare each expected field against actual response
-      Object.entries(idPayload).forEach(([iKey, iExpected]) => {
-        expect(LdActualRow[iKey]).to.deep.equal(iExpected);
+            // Filter child Test Log rows matching current script and master data
+            const laMatchingLogs =
+              ldTestRunResponse.body.data.test_log.filter(
+                (ldEntry: any) =>
+                  ldEntry.test_script === idScriptRow.test_script &&
+                  ldEntry.master_data === iName &&
+                  Number(ldEntry.idx) === Number(idScriptRow.idx)
+              );
+
+            // Iterate through each matching Test Log row
+            laMatchingLogs.forEach((idEntry: any) => {
+              // Update Test Log row with Run Log reference and execution result
+              this.ldReport.updateTestLog(idEntry.name, {
+                run_log: LRunLogId,
+                result: lResult,
+              });
+            });
+          }
+        );
       });
-    }
-    // Log success message in Cypress UI
-    cy.log(`API ${idScript.action} passed for ${idScript.name}`);
   }
-}
 
-// Factory responsible for instantiating correct runner based on test type
-export class clTestRunnerFactory {
-
-  // Create appropriate runner instance dynamically
-  static create(
-    idScript: any,
-    ldContext: ifTestContext,
-    ldAuth: clAuthService,
-    ldReport: clReportService,
-    lTargetUrl: string,
-    ldTestLabData: any,
-    ldMestMasterData: any,
-    ldLoginData: any
-  ): ifTestRunner {
-
-    // Decide runner type based on script configuration
-    switch (idScript.test_type) {
-
-      // Create UI runner instance
-      case "UI":
-        return new clTestRunnerUiService(
-          ldContext,
-          ldAuth,
-          ldReport,
-          lTargetUrl,
-          ldTestLabData,
-          ldMestMasterData,
-          ldLoginData
-        );
-
-      // Create API runner instance
-      case "API":
-        return new clTestRunnerApiService(
-          ldContext,
-          lTargetUrl,
-          ldLoginData,
-          ldAuth,
-          ldTestLabData,
-          ldReport
-        );
-
-      // Throw error if unsupported test type is encountered
-      default:
-        throw new Error(`Unsupported test type: ${idScript.test_type}`);
-    }
+  // Reset execution state in context to prepare for next script
+  private resetContext() {
+    // Clear captured error messages
+    this.ldContext.capturedErrors = [];
+    // Clear captured informational logs
+    this.ldContext.capturedLogs = [];
+    // Reset pass/fail status to default true
+    this.ldContext.isTestPassed = true;
+    // Remove reference to current executing script
+    this.ldContext.currentScript = null;
   }
 }
