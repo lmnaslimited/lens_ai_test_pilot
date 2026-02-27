@@ -64,10 +64,19 @@ export class clTestRunnerUiService {
   }
 
   // Locate matching Test Lab configuration row by master data name
-  private findTestLabRow(iMasterDataName: string) {
+  protected findTestLabRow(iMasterDataName: string) {
+  
+    // Resolve script names if combined using "&"
+    const laResolvedNames = this.resolveScriptNames(iMasterDataName);
+  
+    // Always use only the first script name for Test Lab lookup
+    const lPrimaryName = laResolvedNames[0];
+  
     // Search test_lab_script array for matching master_data field
     return this.ldTestLabData.test_lab_script.find(
-      (idRow: any) => idRow.master_data === iMasterDataName && idRow.idx === this.ldContext.currentScriptRowIdx
+      (idRow: any) =>
+        idRow.master_data === lPrimaryName &&
+        idRow.idx === this.ldContext.currentScriptRowIdx
     );
   }
 
