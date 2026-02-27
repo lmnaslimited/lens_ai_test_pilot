@@ -779,191 +779,123 @@ export class clActionApiGet extends clAction {
     );
   }
 
-  // Construct full endpoint URL using target host and path
-//   protected buildEndpoint(): string {
-//     const LTargetHost =
-//       Cypress.env("TARGET_URL") ||
-//       (() => {
-//         throw new Error("API GET: TARGET_URL not configured.");
-//       })();
-
-//     let lPath =
-//       this.actionRow.value?.trim() ||
-//       (() => {
-//         throw new Error("API GET: Endpoint missing in 'value' field.");
-//       })();
-
-//     // --- Resolve dynamic endpoint ---
-//     if (lPath.includes("{{ use_docname }}")) {
-//       const LdTestLabRow = this.findTestLabRow(
-//         this.ldContext.currentScript.name
-//       );
-
-//       const LdStoredDoc = LdTestLabRow?.use_docname
-//         ? this.ldContext.storeDocname.find(
-//             (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
-//           )
-//         : undefined;
-
-//       lPath = lPath.replace("{{ use_docname }}", LdStoredDoc.docname);
-//     }
-//     if (lPath.includes("{{ current_url }}")) {
-        
-//         const currentUrl = window.location.href;
-//         const cleanUrl = currentUrl.split("?")[0].replace(/\/$/, "");
-//         const segments = cleanUrl.split("/").filter(Boolean);
-//         const docname = segments.pop();
-//         lPath = lPath.replace("{{ current_url }}", docname);
-//       }
-    
-//     lPath = `/api/resource/${lPath}`;
-
-//     const LQuery = this.actionRow.menus?.trim();
-//     lPath += LQuery ? (lPath.includes("?") ? `&${LQuery}` : `?${LQuery}`) : "";
-
-//     return `${LTargetHost.replace(/\/$/, "")}${lPath}`;
-//   }
-
-//Ayesa's code
-// protected buildEndpoint(): string {
-//     const LTargetHost = Cypress.env("TARGET_URL");
-//     if (!LTargetHost) throw new Error("API GET: TARGET_URL not configured.");
-  
-//     const LRawPath = this.actionRow.value?.trim();
-//     if (!LRawPath) throw new Error("API GET: Endpoint missing in 'value' field.");
-  
-//     // Dynamic token resolvers — easy to extend
-//     const LdTokenResolvers: Record<string, () => string> = {
-//       "{{ use_docname }}": () => {
-//         const LdTestLabRow = this.findTestLabRow(this.ldContext.currentScript.name);
-//         const LdStoredDoc = LdTestLabRow?.use_docname
-//           ? this.ldContext.storeDocname.find(
-//               (iIndex) => Number(iIndex.idx) === Number(LdTestLabRow.use_docname)
-//             )
-//           : undefined;
-//         if (!LdStoredDoc?.docname) throw new Error("Stored docname not found.");
-//         return LdStoredDoc.docname;
-//       },
-//       "{{ current_url }}": () => {
-//         const LCurrentPath = window.location.pathname;
-//         const LSegments = LCurrentPath.split("/").filter(Boolean);
-//         const LDocname = LSegments.pop();
-//         if (!LDocname || LDocname === 'app') {
-//             throw new Error(`API GET: Could not extract Docname. Current AUT Path: ${LCurrentPath}`);
-//         }
-//         return decodeURIComponent(LDocname);
-//       },
-//     };
-  
-//     const LTokenRegex = new RegExp(
-//         Object.keys(LdTokenResolvers).map((t) => t.replace(/[{}]/g, "\\$&")).join("|"),
-//         "g"
-//       );
-//     // Replace all tokens dynamically, no rigid structure
-//     const LResolvedPath = LRawPath.replace(LTokenRegex, (iMatch) => {
-//         const LResolver = LdTokenResolvers[iMatch];
-//         if (!LResolver) throw new Error(`No resolver defined for token: ${iMatch}`);
-//         return LResolver();
-//       });
-  
-//     // Construct full path
-//     const LPath = `/api/resource/${LResolvedPath}${this.actionRow.menus?.trim()
-//       ? `${LResolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
-//       : ""}`;
-  
-//     return `${LTargetHost.replace(/\/$/, "")}${LPath}`;
-//   }
-
+// Builds API endpoint dynamically instead of hardcoding URLs,
+// so test steps can remain configuration-driven and reusable.
 protected buildEndpoint(): Cypress.Chainable<string> {
-    const targetHost = Cypress.env("TARGET_URL");
-    if (!targetHost) {
-      throw new Error("API GET: TARGET_URL not configured.");
+    // Get target host from Cypress environment configuration
+    const LTargetHost = Cypress.env("TARGET_URL");
+    // Throw error if TARGET_URL is not configured
+    if (!LTargetHost) {
+      throw new Error("API: TARGET_URL not configured.");
+    }
+    // Endpoint path is stored in Test Case configuration,
+    // so testers can control behavior without changing code.
+    const LRawPath = this.actionRow.value?.trim();
+    // Doctype is required because resource APIs
+    // are always structured as /api/resource/{Doctype}/{name}
+    const LDoctype = this.actionRow.assisting_doctype;
+
+    // Validate that endpoint path exists
+    if (!LRawPath) {
+      throw new Error("API: Endpoint missing in 'value' field.");
+    }
+    
+    // Validate that doctype is provided
+    if (!LDoctype) {
+      throw new Error("API: assisting_doctype is missing.");
     }
   
-    const rawPath = this.actionRow.value?.trim();
-    const doctype = this.actionRow.assisting_doctype;
-  
-    if (!rawPath) {
-      throw new Error("API GET: Endpoint missing in 'value' field.");
-    }
-  
-    if (!doctype) {
-      throw new Error("API GET: assisting_doctype is missing.");
-    }
-  
-    // 🔥 Store resolver keys WITHOUT curly braces
-    const tokenResolvers: Record<string, () => Cypress.Chainable<string>> = {
+    // Token resolvers allow dynamic runtime values inside endpoint,
+    // making test cases state-aware instead of static.
+    const LdEndpointResolvers: Record<string, () => Cypress.Chainable<string>> = {
+        // Allows API to reference a document created in a previous step.
+        // This enables connected test flows (create → update → validate).
       use_docname: () => {
-        const testLabRow = this.findTestLabRow(
+        // Get the current Test Lab information
+        const LdTestLabRow = this.findTestLabRow(
           this.ldContext.currentScript.name
         );
   
-        const storedDoc = testLabRow?.use_docname
+        // extract the use_docname value from test lab
+        // and get the document name stored in context
+        const LdStoredDoc = LdTestLabRow?.use_docname
           ? this.ldContext.storeDocname.find(
               (item) =>
-                Number(item.idx) === Number(testLabRow.use_docname)
+                Number(item.idx) === Number(LdTestLabRow.use_docname)
             )
           : undefined;
   
-        if (!storedDoc?.docname) {
+        if (!LdStoredDoc?.docname) {
           throw new Error("Stored docname not found.");
         }
   
-        return cy.wrap(storedDoc.docname);
+        return cy.wrap(LdStoredDoc.docname);
       },
   
+       // Allows API to act on the document currently open in UI.
+       // This keeps UI + API validations synchronized.
       current_url: () => {
+        // get the current processing documnet name
         return cy.location("pathname").then((pathname: string) => {
-          const segments = pathname.split("/").filter(Boolean);
-          const docname = segments.pop();
+          const LSegments = pathname.split("/").filter(Boolean);
+          const LDocname = LSegments.pop();
   
-          if (!docname || docname === "app") {
+          if (!LDocname || LDocname === "app") {
             throw new Error(
-              `API GET: Could not extract Docname. Current AUT Path: ${pathname}`
+              `API: Could not extract Docname. Current AUT Path: ${pathname}`
             );
           }
   
-          return decodeURIComponent(docname);
+          return decodeURIComponent(LDocname);
         });
       },
     };
   
-    // 🔥 Flexible token matcher (handles spaces safely)
-    const tokenPattern = /\{\{\s*(.*?)\s*\}\}/g;
+    // Regex allows flexible token spacing,
+    // so configuration mistakes (extra spaces) don’t break execution.
+    const LEndpointPattern = /\{\{\s*(.*?)\s*\}\}/g;
   
-    const resolveTokens = (path: string): Cypress.Chainable<string> => {
-      let chain: Cypress.Chainable<string> = cy.wrap(path);
+    // This resolver function ensures path replacement happens
+    // in Cypress chain order, preventing async timing issues.
+    const LResolveEndpoint = (iPath: string): Cypress.Chainable<string> => {
+      let LChain: Cypress.Chainable<string> = cy.wrap(iPath);
   
-      const matches = [...path.matchAll(tokenPattern)];
+      const LaMatches = [...iPath.matchAll(LEndpointPattern)];
   
-      matches.forEach((match) => {
-        const fullMatch = match[0];   // "{{ current_url }}"
-        const tokenName = match[1];   // "current_url"
+      LaMatches.forEach((iaMatch) => {
+        const LFullMatch = iaMatch[0];   // "{{ current_url }}"
+        const LEndpointName = iaMatch[1];   // "current_url"
   
-        chain = chain.then((currentPath: string) => {
-          const resolver = tokenResolvers[tokenName];
-  
-          if (!resolver) {
-            throw new Error(`No resolver defined for token: ${tokenName}`);
+        LChain = LChain.then((iCurrentPath: string) => {
+          const LResolver = LdEndpointResolvers[LEndpointName];
+        
+          // We explicitly fail fast if unsupported token is used,
+          // preventing silent logical errors in test configuration.
+          if (!LResolver) {
+            throw new Error(`No resolver defined for token: ${LEndpointName}`);
           }
   
-          return resolver().then((resolvedValue: string) => {
-            return currentPath.replace(fullMatch, resolvedValue);
+          return LResolver().then((iResolvedValue: string) => {
+            return iCurrentPath.replace(LFullMatch, iResolvedValue);
           });
         });
       });
   
-      return chain;
+      return LChain;
     };
   
-    return resolveTokens(rawPath).then((resolvedPath: string) => {
-      const queryString = this.actionRow.menus?.trim()
-        ? `${resolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
+    // Final construction ensures:
+    // - Query parameters are appended safely
+    // - URL formatting stays consistent
+    // - Trailing slash issues are avoided
+    return LResolveEndpoint(LRawPath).then((iResolvedPath: string) => {
+      const LQueryString = this.actionRow.menus?.trim()
+        ? `${iResolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
         : "";
   
-      const endpoint = `/api/resource/${doctype}/${resolvedPath}${queryString}`;
+      const LEndpoint = `/api/resource/${LDoctype}/${iResolvedPath}${LQueryString}`;
   
-      return `${targetHost.replace(/\/$/, "")}${endpoint}`;
+      return `${LTargetHost.replace(/\/$/, "")}${LEndpoint}`;
     });
   }
 
@@ -1110,44 +1042,6 @@ protected buildEndpoint(): Cypress.Chainable<string> {
     });
   }
 
-  // Execute API request and perform validation
-//   executeAction(): void {
-//     // Get first row as action configuration
-//     this.actionRow = this.actionData[0];
-
-//     if (!this.actionRow) {
-//       throw new Error("API Action: No action row provided.");
-//     }
-
-//     const LMethod = this.getMethod(); // Resolve HTTP method
-//     const LEndpoint = this.buildEndpoint(); // Build full endpoint URL
-
-//     cy.log(`Executing API ${LMethod}: ${LEndpoint}`);
-
-//     cy.request({
-//       method: LMethod,
-//       url: LEndpoint,
-//       headers: this.getHeaders(), // Attach headers
-//       body: this.buildRequestBody(), // Attach request body if any
-//       failOnStatusCode: false, // Manually handle status validation
-//     }).then((idResponse: Cypress.Response<any>) => {
-//       // Validate response status code
-//       if (!this.getValidStatusCodes().includes(idResponse.status)) {
-//         throw new Error(`
-//             API ${LMethod} Failed
-//             Status Code: ${idResponse.status}
-//             Response Body: ${JSON.stringify(idResponse.body, null, 2)}
-//           `);
-//       }
-
-//       // Perform response validation if enabled
-//       if (this.shouldValidateResponse()) {
-//         this.validateResponse(idResponse, LEndpoint);
-//       }
-
-//       cy.log(`API ${LMethod} Completed Successfully`);
-//     });
-//   }
     executeAction(): void {
         // Get first row as action configuration
         this.actionRow = this.actionData[0];
