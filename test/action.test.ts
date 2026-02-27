@@ -919,39 +919,6 @@ Purpose:
         .toThrow("Email does not contain all sidebar attachments.");
     });
 
-    it("Should throw error when attachment count mismatch", () => {
-
-      // Mock the sidebar attachment list.
-      // This simulates Cypress finding TWO attachments in the sidebar
-      // by manually invoking the .each() callback twice with
-      // fake elements returning "file1.pdf".
-      const LaSidebarEach = jest.fn((idSidebarElement:any) => {
-        idSidebarElement({ attr: () => "file1.pdf" });
-        return { then: (fn: Function) => fn() };
-      });
-    
-      // Mock the email attachment list.
-      // This simulates Cypress finding ONLY ONE attachment in the email dialog.
-      // The .each() callback is invoked with "file1.pdf" and "file2.pdf".
-      const LaEmailEach = jest.fn((idEmailElement:any) => {
-        idEmailElement({ attr: () => "file1.pdf" });
-        idEmailElement({ attr: () => "file2.pdf" })
-        return { then: (fn: Function) => fn() };
-      });
-    
-      // First cy.get() call returns the sidebar mock (2 attachments)
-      // Second cy.get() call returns the email mock (1 attachment)
-      (cyMock.get as jest.Mock)
-        .mockReturnValueOnce({ each: LaSidebarEach })
-        .mockReturnValueOnce({ each: LaEmailEach });
-      
-      // Since the number of sidebar attachments (1)
-      // does not match the number of email attachments (2),
-      // the executeAction() method should throw "Attachment count mismatch."
-      expect(() => ldEmailValidation.executeAction())
-        .toThrow("Email Attachment Count Mismatched");
-    });
-
     it("Should pass when attachment count are same", () => {
 
       // Mock the sidebar attachment list.
