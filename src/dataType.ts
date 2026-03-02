@@ -1,6 +1,6 @@
-import { property } from "cypress/types/lodash";
 import { fnGetDelay } from "../src/delay";
-import { clPropertiesFactory } from "./properties";
+import { ifActionHandler, ifDataType, TactionData
+ } from "./types"
 
 /**
  * @class clDataType -Abstract base class for handling different data types.  
@@ -39,13 +39,22 @@ abstract class clDataType implements ifDataType {
     }
 }
 /** @class clDataTypeData - Handles validation and input actions for generic data types. */
-class clDataTypeData extends clDataType {
+export class clDataTypeData extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `input:visible`
     }
     validate(): void {
         if (this.action.actionRow.is_hidden) {
+            return;
+        }
+        // Special handling for null or undefined values to ensure the field is empty
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .invoke('val')
+                .should('be.empty');
             return;
         }
         if (this.action.actionRow.is_read_only) {
@@ -64,7 +73,7 @@ class clDataTypeData extends clDataType {
 }
 
 /** @class clDataTypeDataChild - Handles child data input logic. */
-class clDataTypeDataChild extends clDataTypeData {
+export class clDataTypeDataChild extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -106,7 +115,7 @@ class clDataTypeDataChild extends clDataTypeData {
 }
 
 /** @class clDataTypeSmallText - Handles validation and input for small text data type. */
-class clDataTypeSmallText extends clDataType {
+export class clDataTypeSmallText extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `input:visible`;
@@ -156,7 +165,7 @@ class clDataTypeSmallText extends clDataType {
 }
 
 /** @class clDataTypeLink - Inherits from `clDataTypeData` to handle link-type fields. */
-class clDataTypeLink extends clDataTypeData {
+export class clDataTypeLink extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -170,7 +179,7 @@ class clDataTypeLink extends clDataTypeData {
     }
 }
 /** @class clDataTypeSelect - Handles select dropdown fields. */
-class clDataTypeSelect extends clDataTypeData {
+export class clDataTypeSelect extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = `:visible select`
@@ -183,7 +192,7 @@ class clDataTypeSelect extends clDataTypeData {
     }
 }
 /** @class clDataTypeSelectChild - Handles child select field logic. */
-class clDataTypeSelectChild extends clDataTypeSelect {
+export class clDataTypeSelectChild extends clDataTypeSelect {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -225,7 +234,7 @@ class clDataTypeSelectChild extends clDataTypeSelect {
     }
 }
 /** @class clDataTypeDate -Handles date input fields. */
-class clDataTypeDate extends clDataTypeData {
+export class clDataTypeDate extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -235,20 +244,20 @@ class clDataTypeDate extends clDataTypeData {
     }
 }
 /** @class clDataTypeDynamiclink - Handles dynamic link fields. */
-class clDataTypeDynamiclink extends clDataTypeData {
+export class clDataTypeDynamiclink extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
 }
 /** @class clDataTypeCurrency - Handles currency fields. */
-class clDataTypeCurrency extends clDataTypeData {
+export class clDataTypeCurrency extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
 
     }
 }
 
-class clDataTypecheck extends clDataTypeData {
+export class clDataTypecheck extends clDataTypeData {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
     }
@@ -270,16 +279,26 @@ class clDataTypecheck extends clDataTypeData {
     }
 
     validate(): void {
-        const { value, field_name } = this.action.actionRow;
+        const { value, field_name, is_hidden, is_read_only  } = this.action.actionRow;
         const shouldBeChecked = value === "1";
+        if (is_hidden) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("not.exist");
+            return;
+        }
+        if (is_read_only) {
+            cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
+                .should("be.disabled");
+        }
         cy.get(`input[type="checkbox"][data-fieldname="${field_name}"]`)
             .first()
             .should(shouldBeChecked ? 'be.checked' : 'not.be.checked');
     }
+    
 }
 
 /** @class clDataTypeHTML - Handles HTML fields. */
-class clDataTypeHTML extends clDataType {
+export class clDataTypeHTML extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
         this.fieldProp = '';
@@ -307,6 +326,100 @@ class clDataTypeHTML extends clDataType {
         // No input logic needed for HTML fields
     }
 }
+/** @class clDataTypeDatetime - Handles datetime input fields (date + time). */
+class clDataTypeDatetime extends clDataTypeData {
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = `input:visible`;
+    }
+
+    input(): void {
+        const { value } = this.action.actionRow;
+
+        cy.get(this.getSelector())
+            .should('exist')
+            .and('be.visible')
+            .scrollIntoView()
+            .clear({ force: true })
+            .wait(fnGetDelay("short"))
+            .type(value, { force: true })   // e.g. 02-10-2026 09:00:00
+            .wait(fnGetDelay("short"))
+            .type('{enter}', { force: true })
+            .wait(fnGetDelay("medium"))
+            .blur({ force: true });
+
+        // final assert to ensure Frappe actually saved it
+        cy.get(this.getSelector())
+            .should('have.value', value);
+    }
+
+    validate(): void {
+        if (this.action.actionRow.is_hidden) return;
+
+        const expectedValue = this.action.actionRow.value;
+
+        if (this.action.actionRow.is_read_only) {
+            this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .and('contain.text', expectedValue);
+        } else {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .should('have.value', expectedValue);
+        }
+    }
+}
+
+/** @class clDataTypeTextEditor - Handles Quill Text Editor fields. */
+class clDataTypeTextEditor extends clDataType {
+
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = ` .form-group > .ql-container > .ql-editor`;
+    }
+
+    input(): void {
+        const { value } = this.action.actionRow;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .scrollIntoView()
+            .click({ force: true })
+            .type('{ctrl}a', { force: true })
+            .type('{backspace}', { force: true })
+            .type(value, { force: true })
+            .blur({ force: true });
+    }
+
+    validate(): void {
+        if (this.action.actionRow.is_hidden) return;
+
+        cy.get(this.getSelector())
+            .filter(':visible')
+            .first()
+            .invoke('text')
+            .should('eq', this.action.actionRow.value);
+    }
+}
+
+/** @class clDataTypeInt - Handles Int fields. */
+export class clDataTypeInt extends clDataTypeData{
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+    }
+}
+
+/** @class clDataTypeFloat - Handles Float fields. */
+export class clDataTypeFloat extends clDataTypeData{
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+
+    }
+}
 
 /**
  * 
@@ -323,7 +436,11 @@ export class clDataTypeFactory {
         "Dynamic Link": clDataTypeDynamiclink,
         "Currency": clDataTypeCurrency,
         "Check": clDataTypecheck,
-        "HTML": clDataTypeHTML
+        "HTML": clDataTypeHTML,
+        "Datetime": clDataTypeDatetime,
+        "Text Editor": clDataTypeTextEditor,
+        "Int": clDataTypeInt,
+        "Float": clDataTypeFloat
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];
@@ -341,6 +458,3 @@ export class clDataTypeFactory {
         return new laActionClass(data_type, actiondata);
     }
 }
-
-
-
