@@ -793,7 +793,7 @@ protected buildEndpoint(): Cypress.Chainable<string> {
     const LRawPath = this.actionRow.value?.trim();
     // Doctype is required because resource APIs
     // are always structured as /api/resource/{Doctype}/{name}
-    const LDoctype = this.actionRow.assisting_doctype;
+    const LDoctype = this.actionRow.connecting_doctype;
 
     // Validate that endpoint path exists
     if (!LRawPath) {
@@ -802,7 +802,7 @@ protected buildEndpoint(): Cypress.Chainable<string> {
     
     // Validate that doctype is provided
     if (!LDoctype) {
-      throw new Error("API: assisting_doctype is missing.");
+      throw new Error("API: connecting_doctype is missing.");
     }
   
     // Token resolvers allow dynamic runtime values inside endpoint,

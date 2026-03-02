@@ -430,7 +430,7 @@ describe("Action Classes Unit Tests", () => {
     it("should validate flat fields correctly",async () => {
 
       ldInstance.actionData = [
-        { value: "TEST-0001", assisting_doctype: "Customer" },
+        { value: "TEST-0001", connecting_doctype: "Customer" },
         { field_name: "customer_name", value: "John", data_type: "Data" }
       ] as any;
       mockApiResponse(200, { data: { customer_name: "John" } });
@@ -449,7 +449,7 @@ describe("Action Classes Unit Tests", () => {
     it("should throw error when flat field validation fails", () => {
 
       ldInstance.actionData = [
-        { value: "TEST-0001", assisting_doctype: "Customer" },
+        { value: "TEST-0001", connecting_doctype: "Customer" },
         { field_name: "customer_name", value: "John", data_type: "Data" }
       ] as any;
       mockApiResponse(200, { data: { customer_name: "Jane" } });
@@ -464,7 +464,7 @@ describe("Action Classes Unit Tests", () => {
     it("should validate grouped child table fields correctly",async () => {
 
       ldInstance.actionData = [
-        { value: "TEST-0001", assisting_doctype: "Customer" },
+        { value: "TEST-0001", connecting_doctype: "Customer" },
         {
           field_name: "item_code",
           value: "ITEM-001",
@@ -485,7 +485,7 @@ describe("Action Classes Unit Tests", () => {
     it("should throw error when child table is missing", () => {
 
       ldInstance.actionData = [
-        { value: "TEST-0001", assisting_doctype: "Customer" },
+        { value: "TEST-0001", connecting_doctype: "Customer" },
         {
           field_name: "item_code",
           value: "ITEM-001",

@@ -83,7 +83,7 @@ export type TactionData = {
     message: string;
     menus : string;
     description : string;
-    assisting_doctype: string;
+    connecting_doctype: string;
 };
 /**@type TTactionsData - Represents an array of action data. */
 export type TTactionsData = TactionData[]
