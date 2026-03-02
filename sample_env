@@ -10,7 +10,9 @@ DELAY_CLI_MEDIUM=800   # Delay ranges between 800 to 900 ms
 DELAY_CLI_LONG=1000     # Delay ranges upto 1000 ms
 
 NODE_TLS_REJECT_UNAUTHORIZED=0
-LOGIN_EMAIL=wesupport@lmnas.com
-LOGIN_PASSWORD=*************
 TARGET_PATH=<Doctype-Endpoint>
-TEST_LAB=TL-0001-Sample Test Lab
+TEST_LAB=TL-0005-Quotation Creation validate email attachements
+HOST_URL=https://qsgbcrr.docker.localhost
+TARGET_URL=https://qsgbcrr.docker.localhost
+HOST_KEY=Basic ZDRmNWU1NjZmYjc1ZmY3OjQ1OGI4OTcxMGNiZjhlMg==
+TARGET_KEY=Basic ZDRmNWU1NjZmYjc1ZmY3OjQ1OGI4OTcxMGNiZjhlMg=='
