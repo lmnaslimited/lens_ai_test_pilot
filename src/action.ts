@@ -119,20 +119,86 @@ export class clActionOnChange extends clAction {
 }
 export class clActionOnChangeChild extends clActionOnChange {
     executeAction(): void {
+
         this.actionRow = this.actionData[0];
+
         if (this.actionRow.tab) {
             const LOtabClick = clActionFactory.createAction("On Tab", [this.actionRow]);
             LOtabClick.executeAction();
         }
-        this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
-        this.dataType.input();
+
+        const LrowIndex = (this.actionRow.child_index || 1) - 1;
+        const LchildSelector = `[data-fieldname="${this.actionRow.child_name}"] .grid-body .grid-row`;
+
+        // this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+        // this.dataType.input();
+
         this.actionData.forEach(ldRow => {
+
             if (!ldRow.data_type) return;
+
             this.actionRow = ldRow;
-            this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
-            this.checkFieldValue();
-            this.checkFieldProperties();
+
+            cy.get('body').then(($body: JQuery<HTMLElement>) => {
+                const LgridSelector = `${LchildSelector}:eq(${LrowIndex}) [data-fieldname="${ldRow.field_name}"]`;
+                const LisGridField = $body.find(LgridSelector).length > 0;
+            
+                if (LisGridField) {
+                    cy.wrap(true).as('isGridField');
+                } else {
+                    cy.wrap(false).as('isGridField');
+                }
+            });
+            
+            cy.get('@isGridField').then((LisGridField) => {
+            
+                if (LisGridField) {
+            
+                    // GRID FIELD
+                    this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    this.dataType.input();
+                    this.checkFieldValue();
+                    this.checkFieldProperties();
+            
+                } else {
+            
+                    // OPEN EDIT ROW
+                    cy.get(LchildSelector).eq(LrowIndex).within(() => {
+                        cy.get('.btn-open-row').first().click({ force: true });
+                    });
+            
+                    cy.wait(fnGetDelay("medium"));
+            
+                    if (this.actionRow.section) {
+            
+                        cy.get('.section-head').each(($el) => {
+                            const Ltext = Cypress.$($el).text().trim();
+                            if (Ltext === this.actionRow.section) {
+                                const $parent = Cypress.$($el).parent();
+                                const LisCollapsed = $parent.find('.section-body').css('display') === 'none';
+                                if (LisCollapsed) {
+                                    cy.wrap($el).wait(fnGetDelay("medium")).click({ force: true });
+                                }
+                            }
+                        });
+            
+                    }
+            
+                    this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    this.dataType.input();
+                    this.checkFieldValue();
+                    this.checkFieldProperties();
+            
+                    cy.get(LchildSelector).eq(LrowIndex).within(() => {
+                        cy.get('.btn-open-row').first().click({ force: true });
+                    });
+            
+                }
+            
+            });
+
         });
+
     }
 }
 export class clActionAddRow extends clAction {
