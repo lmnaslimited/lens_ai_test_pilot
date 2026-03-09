@@ -845,14 +845,14 @@ export class clActionApiGet extends clAction {
     );
   }
 
-// Builds API endpoint dynamically instead of hardcoding URLs,
-// so test steps can remain configuration-driven and reusable.
-protected buildEndpoint(): Cypress.Chainable<string> {
+  // Builds API endpoint dynamically instead of hardcoding URLs,
+  // so test steps can remain configuration-driven and reusable.
+  protected buildEndpoint(): Cypress.Chainable<string> {
     // Get target host from Cypress environment configuration
     const LTargetHost = Cypress.env("TARGET_URL");
     // Throw error if TARGET_URL is not configured
     if (!LTargetHost) {
-      throw new Error("API: TARGET_URL not configured.");
+    throw new Error("API: TARGET_URL not configured.");
     }
     // Endpoint path is stored in Test Case configuration,
     // so testers can control behavior without changing code.
@@ -860,157 +860,165 @@ protected buildEndpoint(): Cypress.Chainable<string> {
     // Doctype is required because resource APIs
     // are always structured as /api/resource/{Doctype}/{name}
     const LDoctype = this.actionRow.connecting_doctype;
-
-    // Validate that endpoint path exists
-    if (!LRawPath) {
-      throw new Error("API: Endpoint missing in 'value' field.");
-    }
+    const LMenus = this.actionRow.menus?.trim();
     
     // Validate that doctype is provided
     if (!LDoctype) {
-      throw new Error("API: connecting_doctype is missing.");
+    throw new Error("API: connecting_doctype is missing.");
     }
-  
+
     // Token resolvers allow dynamic runtime values inside endpoint,
     // making test cases state-aware instead of static.
     const LdEndpointResolvers: Record<string, () => Cypress.Chainable<string>> = {
         // Allows API to reference a document created in a previous step.
         // This enables connected test flows (create → update → validate).
-      use_docname: () => {
-        // Get the current Test Lab information
-        const LdTestLabRow = this.findTestLabRow(
-          this.ldContext.currentScript.name
-        );
-  
-        // extract the use_docname value from test lab
-        // and get the document name stored in context
-        const LdStoredDoc = LdTestLabRow?.use_docname
-          ? this.ldContext.storeDocname.find(
-              (item) =>
-                Number(item.idx) === Number(LdTestLabRow.use_docname)
-            )
-          : undefined;
-  
-        if (!LdStoredDoc?.docname) {
-          throw new Error("Stored docname not found.");
-        }
-  
-        return cy.wrap(LdStoredDoc.docname);
-      },
-  
-       // Allows API to act on the document currently open in UI.
-       // This keeps UI + API validations synchronized.
-      current_url: () => {
-        // get the current processing documnet name
-        return cy.location("pathname").then((pathname: string) => {
-          const LSegments = pathname.split("/").filter(Boolean);
-          const LDocname = LSegments.pop();
-  
-          if (!LDocname || LDocname === "app") {
-            throw new Error(
-              `API: Could not extract Docname. Current AUT Path: ${pathname}`
+        use_docname: () => {
+            // Get the current Test Lab information
+            const LdTestLabRow = this.findTestLabRow(
+            this.ldContext.currentScript.name
             );
-          }
-  
-          return decodeURIComponent(LDocname);
-        });
-      },
+
+            // extract the use_docname value from test lab
+            // and get the document name stored in context
+            const LdStoredDoc = LdTestLabRow?.use_docname
+            ? this.ldContext.storeDocname.find(
+                (item) =>
+                    Number(item.idx) === Number(LdTestLabRow.use_docname)
+                )
+            : undefined;
+
+            if (!LdStoredDoc?.docname) {
+            throw new Error("Stored docname not found.");
+            }
+
+            return cy.wrap(LdStoredDoc.docname);
+        },
+
+        // Allows API to act on the document currently open in UI.
+        // This keeps UI + API validations synchronized.
+        current_url: () => {
+            // get the current processing documnet name
+            return cy.location("pathname").then((pathname: string) => {
+            const LSegments = pathname.split("/").filter(Boolean);
+            const LDocname = LSegments.pop();
+
+            if (!LDocname || LDocname === "app") {
+                throw new Error(
+                `API: Could not extract Docname. Current AUT Path: ${pathname}`
+                );
+            }
+
+            return decodeURIComponent(LDocname);
+            });
+        },
     };
-  
+
     // Regex allows flexible token spacing,
     // so configuration mistakes (extra spaces) don’t break execution.
     const LEndpointPattern = /\{\{\s*(.*?)\s*\}\}/g;
-  
+
     // This resolver function ensures path replacement happens
     // in Cypress chain order, preventing async timing issues.
     const LResolveEndpoint = (iPath: string): Cypress.Chainable<string> => {
-      let LChain: Cypress.Chainable<string> = cy.wrap(iPath);
-  
-      const LaMatches = [...iPath.matchAll(LEndpointPattern)];
-  
-      LaMatches.forEach((iaMatch) => {
-        const LFullMatch = iaMatch[0];   // "{{ current_url }}"
-        const LEndpointName = iaMatch[1];   // "current_url"
-  
-        LChain = LChain.then((iCurrentPath: string) => {
-          const LResolver = LdEndpointResolvers[LEndpointName];
-        
-          // We explicitly fail fast if unsupported token is used,
-          // preventing silent logical errors in test configuration.
-          if (!LResolver) {
-            throw new Error(`No resolver defined for token: ${LEndpointName}`);
-          }
-  
-          return LResolver().then((iResolvedValue: string) => {
-            return iCurrentPath.replace(LFullMatch, iResolvedValue);
-          });
+        let lChain: Cypress.Chainable<string> = cy.wrap(iPath);
+
+        const LaMatches = [...iPath.matchAll(LEndpointPattern)];
+
+        LaMatches.forEach((iaMatch) => {
+            const LFullMatch = iaMatch[0];   // "{{ current_url }}"
+            const LEndpointName = iaMatch[1];   // "current_url"
+
+            lChain = lChain.then((iCurrentPath: string) => {
+                const LResolver = LdEndpointResolvers[LEndpointName];
+                
+                // We explicitly fail fast if unsupported token is used,
+                // preventing silent logical errors in test configuration.
+                if (!LResolver) {
+                    throw new Error(`No resolver defined for token: ${LEndpointName}`);
+                }
+
+                return LResolver().then((iResolvedValue: string) => {
+                    return iCurrentPath.replace(LFullMatch, iResolvedValue);
+                });
+            });
         });
-      });
-  
-      return LChain;
+
+        return lChain;
     };
-  
+
+    const LBaseEndpoint = `/api/resource/${LDoctype}`;
+
+    if (!LRawPath) {
+
+        const LQuery = LMenus ? `?${LMenus}` : "";
+
+        return cy.wrap(
+        `${LTargetHost.replace(/\/$/, "")}${LBaseEndpoint}${LQuery}`
+        );
+    }
+
     // Final construction ensures:
     // - Query parameters are appended safely
     // - URL formatting stays consistent
     // - Trailing slash issues are avoided
     return LResolveEndpoint(LRawPath).then((iResolvedPath: string) => {
-      const LQueryString = this.actionRow.menus?.trim()
-        ? `${iResolvedPath.includes("?") ? "&" : "?"}${this.actionRow.menus.trim()}`
+        const LQuery = LMenus
+        ? `${iResolvedPath.includes("?") ? "&" : "?"}${LMenus}`
         : "";
-  
-      const LEndpoint = `/api/resource/${LDoctype}/${iResolvedPath}${LQueryString}`;
-  
-      return `${LTargetHost.replace(/\/$/, "")}${LEndpoint}`;
+
+        const LEndpoint =
+        `${LTargetHost.replace(/\/$/, "")}${LBaseEndpoint}/${iResolvedPath}${LQuery}`;
+
+        return LEndpoint;
     });
   }
 
 
-  // Build expected response structure from action data
-  protected buildExpectedPayload(): {
-    LdFlatFields: Record<string, any>;
-    LdGroupedFields: Record<string, any[]>;
-  } {
-    const LdFlatFields: Record<string, any> = {}; // Store parent-level expected fields
-    const LdGroupedFields: Record<string, any[]> = {}; // Store child table expectations
+    // Build expected response structure from action data
+    protected buildExpectedPayload(): {
+        LdFlatFields: Record<string, any>;
+        LdGroupedFields: Record<string, any[]>;
+    } {
+        const LdFlatFields: Record<string, any> = {}; // Store parent-level expected fields
+        const LdGroupedFields: Record<string, any[]> = {}; // Store child table expectations
 
-    this.actionData.slice(1).forEach((row) => {
-      if (!row.field_name) return; // Skip rows without field name
+        this.actionData.slice(1).forEach((row) => {
+        if (!row.field_name) return; // Skip rows without field name
 
-      const LChildIndex = row.child_index;
-      const LTableName = row.child_name;
+        const LChildIndex = row.child_index;
+        const LTableName = row.child_name;
 
-      // Inline datatype conversion
-      // to support int and float
-      let LValue: any =
-        row.data_type === "Int"
-          ? Number(row.value)
-          : row.data_type === "Float" || row.data_type === "Currency"
-          ? parseFloat(row.value)
-          : row.value;
+        // Inline datatype conversion
+        // to support int and float
+        let LValue: any =
+            row.data_type === "Int"
+            ? Number(row.value)
+            : row.data_type === "Float" || row.data_type === "Currency"
+            ? parseFloat(row.value)
+            : row.value;
 
-      // Assign flat field (Parent Fields) expectation
-      if (!LChildIndex) {
-        LdFlatFields[row.field_name] = LValue;
-        return;
-      }
+        // Assign flat field (Parent Fields) expectation
+        if (!LChildIndex) {
+            LdFlatFields[row.field_name] = LValue;
+            return;
+        }
 
-      // Initialize child table array if missing
-      if (!LdGroupedFields[LTableName]) {
-        LdGroupedFields[LTableName] = [];
-      }
+        // Initialize child table array if missing
+        if (!LdGroupedFields[LTableName]) {
+            LdGroupedFields[LTableName] = [];
+        }
 
-      // Initialize child row object if missing
-      if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
-        LdGroupedFields[LTableName][LChildIndex - 1] = {};
-      }
+        // Initialize child row object if missing
+        if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
+            LdGroupedFields[LTableName][LChildIndex - 1] = {};
+        }
 
-      // Assign expected child field value
-      LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
-    });
+        // Assign expected child field value
+        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
+        });
 
-    return { LdFlatFields, LdGroupedFields };
-  }
+        return { LdFlatFields, LdGroupedFields };
+    }
 
   // Validate API response against expected payload
   protected validateResponse(
@@ -1025,14 +1033,34 @@ protected buildEndpoint(): Cypress.Chainable<string> {
         `);
     }
 
-    // Normalize response data (array or object)
-    const LdResponseData = Array.isArray(idResponse.body.data)
-      ? idResponse.body.data[0]
-      : idResponse.body.data;
-
-    // Build expectations
     const { LdFlatFields, LdGroupedFields } = this.buildExpectedPayload();
 
+    const LdResponseData = idResponse.body.data;
+
+    // If API returns multiple rows (Filter API)
+    if (Array.isArray(LdResponseData)) {
+
+        const [LKeyField, LKeyValue] = Object.entries(LdFlatFields)[0];
+
+        const LMatchedRow = LdResponseData.find(
+            (row: any) => row[LKeyField] == LKeyValue
+        );
+
+        if (!LMatchedRow) {
+            throw new Error(`
+                Row Not Found
+                Field: ${LKeyField}
+                Expected Value: ${LKeyValue}
+                Endpoint: ${iEndpoint}
+            `);
+        }
+
+        this.validateFlatFields(LMatchedRow, LdFlatFields, iEndpoint);
+
+        return;
+    }
+
+    // If API returns single document (Docname API)
     this.validateFlatFields(LdResponseData, LdFlatFields, iEndpoint);
     this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
   }
