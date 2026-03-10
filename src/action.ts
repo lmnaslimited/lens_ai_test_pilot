@@ -1040,7 +1040,17 @@ export class clActionApiGet extends clAction {
     // If API returns multiple rows (Filter API)
     if (Array.isArray(LdResponseData)) {
 
-        const [LKeyField, LKeyValue] = Object.entries(LdFlatFields)[0];
+        const LEntries = Object.entries(LdFlatFields);
+
+        if (!LEntries.length) {
+            throw new Error(`
+                No expected fields configured for validation.
+                Please configure at least one field_name in Test Case Configurator.
+                Endpoint: ${iEndpoint}
+            `);
+        }
+
+        const [LKeyField, LKeyValue] = LEntries[0];
 
         const LMatchedRow = LdResponseData.find(
             (row: any) => row[LKeyField] == LKeyValue
