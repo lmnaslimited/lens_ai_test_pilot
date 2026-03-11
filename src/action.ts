@@ -974,48 +974,87 @@ export class clActionApiGet extends clAction {
   }
 
 
-    // Build expected response structure from action data
+    /**
+     * Build the expected payload structure from Test Case Configurator data.
+     *
+     * This method converts the raw `actionData` configuration into two structures:
+     *
+     * 1. LdFlatFields
+     *    - Represents expected values for top-level (parent) fields.
+     *    - Fields are grouped by `child_index` to support validation of multiple records
+     *      returned by Filter APIs.
+     *
+     *      Example:
+     *      LdFlatFields = {
+     *        0: { price_list: "Standard Selling", price_list_rate: 23249.92 },
+     *        1: { price_list: "Germany Selling EXW", price_list_rate: 25834 }
+     *      }
+     *
+     * 2. LdGroupedFields
+     *    - Represents expected values for child table rows.
+     *    - Fields are grouped by child table name and row index.
+     *
+     *      Example:
+     *      LdGroupedFields = {
+     *        items: [
+     *          { item_code: "ABC", qty: 2 },
+     *          { item_code: "XYZ", qty: 5 }
+     *        ]
+     *      }
+     *
+     * Notes:
+     * - `child_name` determines whether a field belongs to a child table.
+     * - `child_index` determines the row grouping for both filter results
+     *   and child table rows.
+     * - Inline datatype conversion ensures numeric values match API response types.
+     */
     protected buildExpectedPayload(): {
-        LdFlatFields: Record<string, any>;
+        LdFlatFields:  Record<number, Record<string, any>>;
         LdGroupedFields: Record<string, any[]>;
     } {
-        const LdFlatFields: Record<string, any> = {}; // Store parent-level expected fields
+        
+        const LdFlatFields: Record<number, Record<string, any>> = {};; // Store parent-level expected fields
         const LdGroupedFields: Record<string, any[]> = {}; // Store child table expectations
 
         this.actionData.slice(1).forEach((row) => {
-        if (!row.field_name) return; // Skip rows without field name
+            if (!row.field_name) return; // Skip rows without field name
 
-        const LChildIndex = row.child_index;
-        const LTableName = row.child_name;
+            const LChildIndex = row.child_index;
+            const LTableName = row.child_name;
 
-        // Inline datatype conversion
-        // to support int and float
-        let LValue: any =
-            row.data_type === "Int"
-            ? Number(row.value)
-            : row.data_type === "Float" || row.data_type === "Currency"
-            ? parseFloat(row.value)
-            : row.value;
+            // Inline datatype conversion
+            // to support int and float
+            let LValue: any =
+                row.data_type === "Int"
+                ? Number(row.value)
+                : row.data_type === "Float" || row.data_type === "Currency"
+                ? parseFloat(row.value)
+                : row.value;
 
-        // Assign flat field (Parent Fields) expectation
-        if (!LChildIndex) {
-            LdFlatFields[row.field_name] = LValue;
-            return;
-        }
+            // Parent (flat) fields: no child table name means header-level field
+            // Group by child_index so we can validate multiple records from filter APIs
+            if (!LTableName) {
+                // Initialize
+                if (!LdFlatFields[LChildIndex]) {
+                    LdFlatFields[LChildIndex] = {};
+                }
+                LdFlatFields[LChildIndex][row.field_name] = LValue;
+                return;
+            }
 
-        // Initialize child table array if missing
-        if (!LdGroupedFields[LTableName]) {
-            LdGroupedFields[LTableName] = [];
-        }
+            // Initialize child table array if missing
+            if (!LdGroupedFields[LTableName]) {
+                LdGroupedFields[LTableName] = [];
+            }
 
-        // Initialize child row object if missing
-        if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
-            LdGroupedFields[LTableName][LChildIndex - 1] = {};
-        }
+            // Initialize child row object if missing
+            if (!LdGroupedFields[LTableName][LChildIndex - 1]) {
+                LdGroupedFields[LTableName][LChildIndex - 1] = {};
+            }
 
-        // Assign expected child field value
-        LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
-        });
+            // Assign expected child field value
+            LdGroupedFields[LTableName][LChildIndex - 1][row.field_name] = LValue;
+            });
 
         return { LdFlatFields, LdGroupedFields };
     }
@@ -1037,41 +1076,42 @@ export class clActionApiGet extends clAction {
 
     const LdResponseData = idResponse.body.data;
 
-    // If API returns multiple rows (Filter API)
+    // If response is an array, treat it as a Filter API result
+    // and validate each expected record against the response list
     if (Array.isArray(LdResponseData)) {
-
-        const LEntries = Object.entries(LdFlatFields);
-
-        if (!LEntries.length) {
+        const LaRows = Object.values(LdFlatFields);
+        if (!LaRows.length) {
             throw new Error(`
-                No expected fields configured for validation.
-                Please configure at least one field_name in Test Case Configurator.
-                Endpoint: ${iEndpoint}
+            No expected fields configured for validation.
+            Endpoint: ${iEndpoint}
             `);
         }
 
-        const [LKeyField, LKeyValue] = LEntries[0];
-
-        const LMatchedRow = LdResponseData.find(
-            (row: any) => row[LKeyField] == LKeyValue
-        );
-
-        if (!LMatchedRow) {
-            throw new Error(`
-                Row Not Found
-                Field: ${LKeyField}
-                Expected Value: ${LKeyValue}
-                Endpoint: ${iEndpoint}
-            `);
-        }
-
-        this.validateFlatFields(LMatchedRow, LdFlatFields, iEndpoint);
-
+        LaRows.forEach((LdExpectedRow) => {
+            // Find a response row that matches all configured fields
+            // for the expected record
+            const LdMatchedRow = LdResponseData.find((row:any) =>
+                Object.entries(LdExpectedRow).every(
+                    ([field,value]) => row[field] == value
+                )
+            );
+            
+            if (!LdMatchedRow) {
+                throw new Error(`
+                    Row Not Found
+                    Expected Row: ${JSON.stringify(LdExpectedRow)}
+                    Endpoint: ${iEndpoint}
+                `);
+            }
+            //pass the matched row to flat field validator to check if all fields are correct
+            this.validateFlatFields(LdMatchedRow, LdExpectedRow, iEndpoint);
+        })
         return;
     }
 
-    // If API returns single document (Docname API)
-    this.validateFlatFields(LdResponseData, LdFlatFields, iEndpoint);
+    // If API returns single document (Docname API), so all the 
+    // configured fields will be in first index of LdFlatFields
+    this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
     this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
   }
 
