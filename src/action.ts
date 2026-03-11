@@ -155,7 +155,11 @@ export class clActionOnChangeChild extends clActionOnChange {
                 if (LisGridField) {
             
                     // GRID FIELD
-                    this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    // this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    // this.dataType.input();
+                    if (!ldRow.data_type) return;
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
                     this.dataType.input();
                     this.checkFieldValue();
                     this.checkFieldProperties();
@@ -184,7 +188,11 @@ export class clActionOnChangeChild extends clActionOnChange {
             
                     }
             
-                    this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    // this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
+                    // this.dataType.input();
+                    if (!ldRow.data_type) return;
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
                     this.dataType.input();
                     this.checkFieldValue();
                     this.checkFieldProperties();
@@ -299,14 +307,19 @@ export class clActionCancel extends clAction {
     executeAction(): void {
         cy.contains('button', 'Cancel').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("long"));
-        cy.get('.modal:visible').within(() => {
-            cy.contains('button', /^Yes$/).should('be.visible').click({ force: true });
-        });
+        cy.contains('button', 'Yes').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("long"));
-        // Optional: Close modal if it's still there
+        cy.get('.btn-modal-close').click({ force: true });
+        cy.log("Document Submitted sucessfully");
+        cy.wait(fnGetDelay("long"));
         // cy.get('.modal:visible').within(() => {
-        // cy.get('.btn-modal-close').click({ force: true });
-        // });                                                        
+        //     cy.contains('button', /^Yes$/).should('be.visible').click({ force: true });
+        // });
+        // cy.wait(fnGetDelay("long"));
+        // // Optional: Close modal if it's still there
+        // // cy.get('.modal:visible').within(() => {
+        // // cy.get('.btn-modal-close').click({ force: true });
+        // // });                                                        
         cy.log("Document Cancelled Successfully");
     }
 }
