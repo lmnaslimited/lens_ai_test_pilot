@@ -310,7 +310,6 @@ export class clActionCancel extends clAction {
         cy.contains('button', 'Yes').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("long"));
         cy.get('.btn-modal-close').click({ force: true });
-        cy.log("Document Submitted sucessfully");
         cy.wait(fnGetDelay("long"));
         // cy.get('.modal:visible').within(() => {
         //     cy.contains('button', /^Yes$/).should('be.visible').click({ force: true });
