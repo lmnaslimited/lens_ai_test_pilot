@@ -61,6 +61,7 @@ export class clTestRunnerUiService {
   // Navigate to the main application page after login
   private visitApplication() {
     cy.visit(`${this.lTargetUrl}/app`);
+    this.waitForUiReady();
   }
 
   // Locate matching Test Lab configuration row by master data name
@@ -113,7 +114,8 @@ export class clTestRunnerUiService {
     this.handleConnectionCreation(idScript);
 
     // Wait to allow UI stabilization after execution
-    cy.wait(fnGetDelay("medium"));
+    // cy.wait(fnGetDelay("medium"));
+    this.waitForUiReady();
   }
 
   // Execute top-level(Parent) script initialization action
@@ -164,7 +166,10 @@ export class clTestRunnerUiService {
     if (!LdTestLabRow) return;
 
     // Read current browser URL after execution
-    cy.url().then((iUrl: string) => {
+    // cy.url().then((iUrl: string) => {
+    // Read current browser path after execution.
+    // Using pathname keeps extraction consistent and avoids query/hash noise.
+    cy.location("pathname", { timeout: fnGetDelay("long") }).then((iUrl: string) => {
       // Extract document identifier from URL path
       if(!iUrl) {return}
       const docname = this.extractDocnameFromUrl(iUrl);
@@ -172,19 +177,70 @@ export class clTestRunnerUiService {
       if (!docname) return;
 
       // Store document name in context mapped by Test Lab index
-      this.ldContext.storeDocname.push({
-        idx: LdTestLabRow.idx,
-        docname,
-      });
+      // this.ldContext.storeDocname.push({
+      //   idx: LdTestLabRow.idx,
+      //   docname,
+      // });
+      this.upsertStoredDocname(LdTestLabRow.idx, docname);
     });
+    cy.wait(fnGetDelay("long"));
   }
 
   // Extract last path segment from URL as document name
   private extractDocnameFromUrl(iUrl: string): string | undefined {
     // Split URL into segments
-    const LParts = iUrl.split("/");
-    // Return last non-empty segment
-    return LParts.pop() || LParts.pop();
+    // const LParts = iUrl.split("/");
+    // // Return last non-empty segment
+    // return LParts.pop() || LParts.pop();
+    // Normalize input (supports full URL and pathname)
+    const LCleanedPath = iUrl
+      .replace(/^[a-z]+:\/\/[^/]+/i, "")
+      .split("?")[0]
+      .split("#")[0]
+      .replace(/\/+$/, "");
+
+    // Split and remove empty segments
+    const LParts = LCleanedPath.split("/").filter(Boolean);
+
+    // Valid document pages follow /app/<doctype>/<docname>
+    if (LParts.length < 3 || LParts[0] !== "app") {
+      return undefined;
+    }
+
+    // Return document name segment only
+    return decodeURIComponent(LParts[2]);
+  }
+
+  // Insert or update stored document reference by idx
+    private upsertStoredDocname(iIdx: number, iDocname: string): void {
+      const LExistingIndex = this.ldContext.storeDocname.findIndex(
+        (iItem) => Number(iItem.idx) === Number(iIdx)
+      );
+
+      if (LExistingIndex >= 0) {
+        this.ldContext.storeDocname[LExistingIndex] = {
+          idx: iIdx,
+          docname: iDocname,
+        };
+        return;
+      }
+
+      this.ldContext.storeDocname.push({
+        idx: iIdx,
+        docname: iDocname,
+      });
+  }
+  private waitForUiReady() {
+    // Ensure DOM is fully parsed/rendered
+    cy.document().its("readyState").should("eq", "complete");
+
+    // Wait for common frappe loading overlays/spinners to disappear
+    cy.get("body", { timeout: fnGetDelay("long") * 10 }).should(($body) => {
+      expect($body.find(".freeze, .freeze-ui, .modal-backdrop.show").length).to.eq(0);
+    });
+
+    // Small settle buffer after app becomes interactive
+    cy.wait(fnGetDelay("short"));
   }
   // Finalizes execution of the currently active script
   finalizeScript() {

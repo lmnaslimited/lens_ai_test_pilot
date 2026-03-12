@@ -201,14 +201,16 @@ export class clActionOnTab extends clAction {
 export class clActionSave extends clAction {
     protected lActionMessage: string = "saved successfully.";
     executeAction(): void {
+        cy.wait(fnGetDelay('long'))
         cy.get('body').then(($body: JQuery<HTMLElement>) => {
             const $saveBtn = $body.find('.primary-action:visible');
             if ($saveBtn.length > 0) {
                 cy.wrap($saveBtn)
                     .scrollIntoView()
+                    .wait(1000)
                     .click({ force: true });
                 cy.log(this.lActionMessage);
-                cy.wait(fnGetDelay("short"));
+                cy.wait(fnGetDelay("long"));
             } else {
                 throw new Error(`No visible ${this.action} (.primary-action) found in DOM.`);
             }
@@ -224,6 +226,7 @@ export class clActionSubmit extends clAction {
         cy.contains('button', 'Yes').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("long"));
         cy.get('.btn-modal-close').click({ force: true });
+        cy.wait(fnGetDelay("long"));
         cy.log("Document Submitted sucessfully");
         cy.wait(fnGetDelay("long"));
     }
@@ -232,16 +235,13 @@ export class clActionSubmit extends clAction {
 export class clActionCancel extends clAction {
     executeAction(): void {
         cy.contains('button', 'Cancel').scrollIntoView().should('exist').click({ force: true });
+        cy.wait(fnGetDelay("short"));
+        cy.contains('button', 'Yes').scrollIntoView().should('exist').click({ force: true });
         cy.wait(fnGetDelay("long"));
-        cy.get('.modal:visible').within(() => {
-            cy.contains('button', /^Yes$/).should('be.visible').click({ force: true });
-        });
+        cy.get('.btn-modal-close').click({ force: true });
         cy.wait(fnGetDelay("long"));
-        // Optional: Close modal if it's still there
-        // cy.get('.modal:visible').within(() => {
-        // cy.get('.btn-modal-close').click({ force: true });
-        // });                                                        
-        cy.log("Document Cancelled Successfully");
+        cy.log("Document Cancelled sucessfully");
+        cy.wait(fnGetDelay("long"));
     }
 }
 export class clActionAmend extends clActionSave {
