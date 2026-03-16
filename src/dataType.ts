@@ -66,7 +66,7 @@ export class clDataTypeData extends clDataType {
     }
     input(): void {
         const { value } = this.action.actionRow;
-        cy.get(this.getSelector()).wait(fnGetDelay("short")).clear({ force: true }).wait(fnGetDelay("medium")).type(value).wait(fnGetDelay("medium")).should('have.value', value).wait(fnGetDelay("medium"))
+        cy.get(this.getSelector()).wait(fnGetDelay("medium")).clear({ force: true }).wait(fnGetDelay("medium")).type(value).wait(fnGetDelay("medium")).should('have.value', value).wait(fnGetDelay("medium"))
             .type('{enter}', { force: true })
             .wait(fnGetDelay("medium"));
     }
@@ -84,14 +84,14 @@ export class clDataTypeDataChild extends clDataTypeData {
         cy.get(this.getchildSelector()).eq(this.getchildRow()).within(() => {
             cy.get(this.getfieldchild()).then($field => {
                 const $el = $field as unknown as JQuery<HTMLElement>;
-                const $input = $el.find('input:visible');
+                const $input = $el.find('input:visible, textarea:visible');
                 if ($input.length > 0) {
-                    cy.wrap($input).should('be.visible').wait(600).first().clear({ force: true }).type(value, { force: true }).wait(100).blur({ force: true });
+                    cy.wrap($input).should('be.visible').wait(1000).first().clear({ force: true }).type(value, { force: true }).wait(500).blur({ force: true });
                 }
                 else {
                     cy.wrap($field).dblclick();
-                    cy.wait(300);
-                    cy.wrap($field).find('input:visible').should('exist').wait(600).clear({ force: true }).type(value, { force: true }).wait(100).blur({ force: true });
+                    cy.wait(500);
+                    cy.wrap($field).find('input:visible, textarea:visible').should('exist').wait(1000).clear({ force: true }).type(value, { force: true }).wait(500).blur({ force: true });
                 }
             });
         });
@@ -451,7 +451,7 @@ export class clDataTypeFactory {
         if (data_type === "Select" && lActualRow.is_child) {
             return new clDataTypeSelectChild(data_type, actiondata);
         }
-        let laHandledChildTypes = ["Data", "Link", "Date", "Dynamic Link", "Currency"];
+        let laHandledChildTypes = ["Data", "Small Text", "Link", "Date", "Dynamic Link", "Currency"];
         if (lActualRow.is_child && laHandledChildTypes.includes(data_type)) {
             return new clDataTypeDataChild(data_type, actiondata);
         }

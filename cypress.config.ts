@@ -6,7 +6,6 @@ export default defineConfig({
   experimentalMemoryManagement: true,
   numTestsKeptInMemory: 0,
   e2e: {
-
   /**
    * setupNodeEvents(on, config)
    *
