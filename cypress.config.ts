@@ -6,10 +6,6 @@ export default defineConfig({
   experimentalMemoryManagement: true,
   numTestsKeptInMemory: 0,
   e2e: {
-      retries: {
-      runMode: 2,   // retry when running in CLI
-      openMode: 0   // no retry in Cypress UI
-    },
   /**
    * setupNodeEvents(on, config)
    *
