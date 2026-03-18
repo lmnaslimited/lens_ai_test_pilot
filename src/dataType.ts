@@ -104,7 +104,7 @@ export class clDataTypeDataChild extends clDataTypeData {
                     const $el = $field as unknown as JQuery<HTMLElement>;
                     const $input = $el.find('input');
                     if ($input.length) {
-                        cy.wrap($input).should('have.value', value);
+                        cy.wrap($input).should('have.value', value ?? '');
                     } else {
                         cy.wrap($field).should('contain.text', value);
                     }
@@ -125,7 +125,15 @@ export class clDataTypeSmallText extends clDataType {
         if (this.action.actionRow.is_hidden) {
             return;
         }
-
+        // Special handling for null or undefined values to ensure the field is empty
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .invoke('val')
+                .should('be.empty');
+            return;
+        }
         const normalizeText = (text: string): string =>
             text.replace(/\\n/g, '')   // remove escaped newlines
                 .replace(/\s+/g, '');  // remove all whitespace including actual \n, space, \t, etc.
@@ -451,7 +459,7 @@ export class clDataTypeFactory {
         if (data_type === "Select" && lActualRow.is_child) {
             return new clDataTypeSelectChild(data_type, actiondata);
         }
-        let laHandledChildTypes = ["Data", "Small Text", "Link", "Date", "Dynamic Link", "Currency"];
+        let laHandledChildTypes = ["Data", "Small Text", "Link", "Date", "Dynamic Link", "Currency", "Int", "Float"];
         if (lActualRow.is_child && laHandledChildTypes.includes(data_type)) {
             return new clDataTypeDataChild(data_type, actiondata);
         }
