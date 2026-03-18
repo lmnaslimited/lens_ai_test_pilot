@@ -59,7 +59,7 @@ export class clDataTypeData extends clDataType {
         }
         if (this.action.actionRow.is_read_only) {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
-            cy.get(this.getSelector()).should('exist').and('be.visible').and('have.text', this.action.actionRow.value);
+            cy.get(this.getSelector()).should('exist').and('be.visible').first().and('have.text', this.action.actionRow.value);
         } else {
             cy.get(this.getSelector()).wait(fnGetDelay("medium")).should('exist').and('be.visible').and('have.value', this.action.actionRow.value);
         }
