@@ -136,12 +136,17 @@ export class clActionOnChangeChild extends clActionOnChange {
     
             if (!ldRow.data_type) return;
     
-            const LFieldSelector = `${LChildSelector}:eq(${LRowIndex}) [data-fieldname="${ldRow.field_name}"]`;
+            // const LFieldSelector = `${LChildSelector}:eq(${LRowIndex}) [data-fieldname="${ldRow.field_name}"]`;
     
-            cy.get('body').then(($body: JQuery<HTMLElement>) => {
-    
-                const LIsGridField = $body.find(`${LFieldSelector}.grid-static-col:visible .static-area`).length > 0;
-    
+            cy.get(LChildSelector)
+                .eq(LRowIndex)
+                .then(($row: JQuery<HTMLElement>) => {
+
+                    const field = $row.find(`[data-fieldname="${ldRow.field_name}"]`);
+
+                    const LIsGridField =
+                        field.length > 0 && field.hasClass('grid-static-col');
+                    
                 if (LIsGridField) {
                     
                     // GRID FIELD
