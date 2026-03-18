@@ -43,6 +43,10 @@ abstract class clAction implements ifActionHandler {
             laRows.forEach(ldRow => {
                 if (!ldRow.data_type) return;
                 this.actionRow = ldRow;
+                if (this.actionRow.section) {
+                    const LOsectionClick = clActionFactory.createAction("Expand Section", [this.actionRow]);
+                    LOsectionClick.executeAction();
+                }
                 this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this);
                 this.checkFieldValue();
                 this.checkFieldProperties();
