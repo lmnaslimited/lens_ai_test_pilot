@@ -124,14 +124,57 @@ export class clActionOnChangeChild extends clActionOnChange {
             const LOtabClick = clActionFactory.createAction("On Tab", [this.actionRow]);
             LOtabClick.executeAction();
         }
-        this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
-        this.dataType.input();
-        this.actionData.forEach(ldRow => {
+    
+        const LRowIndex = (this.actionRow.child_index || 1) - 1;
+        const LChildSelector = `[data-fieldname="${this.actionRow.child_name}"] .grid-body .grid-row`;
+    
+        cy.wrap(this.actionData).each((ldRow: any) => {
+    
             if (!ldRow.data_type) return;
-            this.actionRow = ldRow;
-            this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
-            this.checkFieldValue();
-            this.checkFieldProperties();
+    
+            const LFieldSelector = `${LChildSelector}:eq(${LRowIndex}) [data-fieldname="${ldRow.field_name}"]`;
+    
+            cy.get('body').then(($body: JQuery<HTMLElement>) => {
+    
+                const LIsGridField = $body.find(`${LFieldSelector}.grid-static-col:visible .static-area`).length > 0;
+    
+                if (LIsGridField) {
+                    
+                    // GRID FIELD
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
+                    if (ldRow.action) {this.dataType.input();}
+    
+                } else {
+    
+                    // OPEN EDIT ROW ONCE
+                    // OPEN EDIT ROW
+                    cy.get(LChildSelector).eq(LRowIndex).within(() => {
+                        cy.get('.btn-open-row').first().click({ force: true });
+                    });
+    
+                    cy.wait(fnGetDelay("medium"));
+    
+                    // HANDLE SECTION
+                    if (ldRow.section) {
+                        cy.contains('.section-head', ldRow.section)
+                          .then(($el:JQuery<HTMLElement>) => {
+                              const $parent = $el.parent();
+                              if ($parent.find('.section-body').is(':hidden')) {
+                                  cy.wrap($el).click({ force: true });
+                              }
+                          });
+                    }
+    
+                    // INPUT
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
+                    if(ldRow.action)this.dataType.input();
+                }
+                this.checkFieldValue();
+                this.checkFieldProperties();
+            });
+    
         });
     }
 }
@@ -1045,8 +1088,8 @@ export class clActionApiGet extends clAction {
 
     // If API returns single document (Docname API), so all the 
     // configured fields will be in first index of LdFlatFields
-    this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
-    this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    if(LdFlatFields[0]) this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
+    if(LdGroupedFields) this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
   }
 
   // Validate top-level (Parent Field) response fields
