@@ -1015,7 +1015,7 @@ export class clActionApiGet extends clAction {
                 ? Number(row.value)
                 : row.data_type === "Float" || row.data_type === "Currency"
                 ? parseFloat(row.value)
-                : row.value;
+                : row.value ?? '';
 
             // Parent (flat) fields: no child table name means header-level field
             // Group by child_index so we can validate multiple records from filter APIs
@@ -1116,8 +1116,11 @@ export class clActionApiGet extends clAction {
       }
 
       const LActual = idResponseData[LField]; // Extract actual value
+      const clean = (val: any) => String(val)    .replace(/\\n/g, '')   // remove literal "\n"
+        .replace(/\n/g, '')    // remove actual newline
+        .replace(/\s+/g, ' ') ; // Normalize newlines for consistent comparison
 
-      if (LActual != LExpected) {
+    if (clean(LActual) != clean(LExpected)){
         throw new Error(`
             Validation Failed
             Field: ${LField}
