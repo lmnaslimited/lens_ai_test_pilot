@@ -152,6 +152,7 @@ export class clDataTypeSmallText extends clDataType {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
             cy.get(this.getSelector())
                 .should('exist')
+                .first()
                 .and('be.visible')
                 .invoke('text')
                 .then(normalizeText)

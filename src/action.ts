@@ -1097,8 +1097,12 @@ export class clActionApiGet extends clAction {
 
     // If API returns single document (Docname API), so all the 
     // configured fields will be in first index of LdFlatFields
-    if(LdFlatFields[0]) this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
-    if(LdGroupedFields) this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    if(LdFlatFields[0]) {this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
+        console.log("inside flat")
+    }
+    if(LdGroupedFields) {this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+        console.log("inside group field")
+    }
   }
 
   // Validate top-level (Parent Field) response fields
@@ -1116,7 +1120,10 @@ export class clActionApiGet extends clAction {
       }
 
       const LActual = idResponseData[LField]; // Extract actual value
-      const clean = (val: any) => String(val)    .replace(/\\n/g, '')   // remove literal "\n"
+      const clean = (val: any) => String(val)    
+        .replace(/\\u003Cbr\\u003E/g, '<br>') // convert encoded <br>
+        .replace(/<br>/g, ' ') 
+        .replace(/\\n/g, '')   // remove literal "\n"
         .replace(/\n/g, '')    // remove actual newline
         .replace(/\s+/g, ' ') ; // Normalize newlines for consistent comparison
 
@@ -1142,14 +1149,12 @@ export class clActionApiGet extends clAction {
   ): void {
     Object.entries(idGroupedFields).forEach(([LTableName, LaExpectedRows]) => {
       const LaResponseArray = idResponseData[LTableName]; // Extract child table array
-
       if (!Array.isArray(LaResponseArray)) {
         throw new Error(`Child Table Missing or Not Array: ${LTableName}`);
       }
 
       LaExpectedRows.forEach((LdExpectedRow, LIndex) => {
         const LdActualRow = LaResponseArray[LIndex]; // Extract actual row
-
         if (!LdActualRow) {
           throw new Error(`Missing row ${LIndex + 1} in ${LTableName}`);
         }
