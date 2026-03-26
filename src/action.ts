@@ -155,8 +155,6 @@ export class clActionOnChangeChild extends clActionOnChange {
                     if (ldRow.action) {this.dataType.input();}
     
                 } else {
-    
-                    // OPEN EDIT ROW ONCE
                     // OPEN EDIT ROW
                     cy.get(LChildSelector).eq(LRowIndex).within(() => {
                         cy.get('.btn-open-row').first().click({ force: true });
@@ -1097,11 +1095,11 @@ export class clActionApiGet extends clAction {
 
     // If API returns single document (Docname API), so all the 
     // configured fields will be in first index of LdFlatFields
-    if(LdFlatFields[0]) {this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
-        console.log("inside flat")
+    if(LdFlatFields[0]) {
+        this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
     }
-    if(LdGroupedFields) {this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
-        console.log("inside group field")
+    if(LdGroupedFields) {
+        this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
     }
   }
 

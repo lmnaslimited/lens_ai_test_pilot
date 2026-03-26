@@ -135,10 +135,6 @@ export class clDataTypeSmallText extends clDataType {
             return;
         }
         const normalizeText = (text: string): string =>
-            // text.replace(/<br\s*\/?>/gi, ' ')  // handle <br> if present
-            //     .replace(/\n/g, ' ')           // convert newline to space
-            //     .replace(/\s+/g, ' ')          // collapse multiple spaces
-            //     .trim();
             text.replace(/<br\s*\/?>/gi, ' ')
             .replace(/\n/g, ' ')
             .replace(/([0-9])([A-Za-z])/g, '$1 $2') // number + word
