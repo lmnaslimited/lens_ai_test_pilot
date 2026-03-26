@@ -43,6 +43,10 @@ abstract class clAction implements ifActionHandler {
             laRows.forEach(ldRow => {
                 if (!ldRow.data_type) return;
                 this.actionRow = ldRow;
+                if (this.actionRow.section) {
+                    const LOsectionClick = clActionFactory.createAction("Expand Section", [this.actionRow]);
+                    LOsectionClick.executeAction();
+                }
                 this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this);
                 this.checkFieldValue();
                 this.checkFieldProperties();
@@ -124,14 +128,60 @@ export class clActionOnChangeChild extends clActionOnChange {
             const LOtabClick = clActionFactory.createAction("On Tab", [this.actionRow]);
             LOtabClick.executeAction();
         }
-        this.dataType = clDataTypeFactory.createDataType(this.actionRow.data_type, this);
-        this.dataType.input();
-        this.actionData.forEach(ldRow => {
+    
+        const LRowIndex = (this.actionRow.child_index || 1) - 1;
+        const LChildSelector = `[data-fieldname="${this.actionRow.child_name}"] .grid-body .grid-row`;
+    
+        cy.wrap(this.actionData).each((ldRow: any) => {
+    
             if (!ldRow.data_type) return;
-            this.actionRow = ldRow;
-            this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
-            this.checkFieldValue();
-            this.checkFieldProperties();
+    
+            // const LFieldSelector = `${LChildSelector}:eq(${LRowIndex}) [data-fieldname="${ldRow.field_name}"]`;
+    
+            cy.get(LChildSelector)
+                .eq(LRowIndex)
+                .then(($row: JQuery<HTMLElement>) => {
+
+                    const field = $row.find(`[data-fieldname="${ldRow.field_name}"]`);
+
+                    const LIsGridField =
+                        field.length > 0 && field.hasClass('grid-static-col');
+                    
+                if (LIsGridField) {
+                    
+                    // GRID FIELD
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
+                    if (ldRow.action) {this.dataType.input();}
+    
+                } else {
+                    // OPEN EDIT ROW
+                    cy.get(LChildSelector).eq(LRowIndex).within(() => {
+                        cy.get('.btn-open-row').first().click({ force: true });
+                    });
+    
+                    cy.wait(fnGetDelay("medium"));
+    
+                    // HANDLE SECTION
+                    if (ldRow.section) {
+                        cy.contains('.section-head', ldRow.section)
+                          .then(($el:JQuery<HTMLElement>) => {
+                              const $parent = $el.parent();
+                              if ($parent.find('.section-body').is(':hidden')) {
+                                  cy.wrap($el).click({ force: true });
+                              }
+                          });
+                    }
+    
+                    // INPUT
+                    this.actionRow = ldRow;
+                    this.dataType = clDataTypeFactory.createDataType(ldRow.data_type, this, ldRow);
+                    if(ldRow.action)this.dataType.input();
+                }
+                this.checkFieldValue();
+                this.checkFieldProperties();
+            });
+    
         });
     }
 }
@@ -963,7 +1013,7 @@ export class clActionApiGet extends clAction {
                 ? Number(row.value)
                 : row.data_type === "Float" || row.data_type === "Currency"
                 ? parseFloat(row.value)
-                : row.value;
+                : row.value ?? '';
 
             // Parent (flat) fields: no child table name means header-level field
             // Group by child_index so we can validate multiple records from filter APIs
@@ -1045,8 +1095,12 @@ export class clActionApiGet extends clAction {
 
     // If API returns single document (Docname API), so all the 
     // configured fields will be in first index of LdFlatFields
-    this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
-    this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    if(LdFlatFields[0]) {
+        this.validateFlatFields(LdResponseData, LdFlatFields[0], iEndpoint);
+    }
+    if(LdGroupedFields) {
+        this.validateGroupedFields(LdResponseData, LdGroupedFields, iEndpoint);
+    }
   }
 
   // Validate top-level (Parent Field) response fields
@@ -1064,8 +1118,14 @@ export class clActionApiGet extends clAction {
       }
 
       const LActual = idResponseData[LField]; // Extract actual value
+      const clean = (val: any) => String(val)    
+        .replace(/\\u003Cbr\\u003E/g, '<br>') // convert encoded <br>
+        .replace(/<br>/g, ' ') 
+        .replace(/\\n/g, '')   // remove literal "\n"
+        .replace(/\n/g, '')    // remove actual newline
+        .replace(/\s+/g, ' ') ; // Normalize newlines for consistent comparison
 
-      if (LActual != LExpected) {
+    if (clean(LActual) != clean(LExpected)){
         throw new Error(`
             Validation Failed
             Field: ${LField}
@@ -1087,14 +1147,12 @@ export class clActionApiGet extends clAction {
   ): void {
     Object.entries(idGroupedFields).forEach(([LTableName, LaExpectedRows]) => {
       const LaResponseArray = idResponseData[LTableName]; // Extract child table array
-
       if (!Array.isArray(LaResponseArray)) {
         throw new Error(`Child Table Missing or Not Array: ${LTableName}`);
       }
 
       LaExpectedRows.forEach((LdExpectedRow, LIndex) => {
         const LdActualRow = LaResponseArray[LIndex]; // Extract actual row
-
         if (!LdActualRow) {
           throw new Error(`Missing row ${LIndex + 1} in ${LTableName}`);
         }

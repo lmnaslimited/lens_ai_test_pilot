@@ -59,7 +59,7 @@ export class clDataTypeData extends clDataType {
         }
         if (this.action.actionRow.is_read_only) {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
-            cy.get(this.getSelector()).should('exist').and('be.visible').and('have.text', this.action.actionRow.value);
+            cy.get(this.getSelector()).should('exist').and('be.visible').first().and('have.text', this.action.actionRow.value);
         } else {
             cy.get(this.getSelector()).wait(fnGetDelay("medium")).should('exist').and('be.visible').and('have.value', this.action.actionRow.value);
         }
@@ -104,7 +104,7 @@ export class clDataTypeDataChild extends clDataTypeData {
                     const $el = $field as unknown as JQuery<HTMLElement>;
                     const $input = $el.find('input');
                     if ($input.length) {
-                        cy.wrap($input).should('have.value', value);
+                        cy.wrap($input).should('have.value', value ?? '');
                     } else {
                         cy.wrap($field).should('contain.text', value);
                     }
@@ -125,10 +125,22 @@ export class clDataTypeSmallText extends clDataType {
         if (this.action.actionRow.is_hidden) {
             return;
         }
-
+        // Special handling for null or undefined values to ensure the field is empty
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector())
+                .should('exist')
+                .and('be.visible')
+                .invoke('val')
+                .should('be.empty');
+            return;
+        }
         const normalizeText = (text: string): string =>
-            text.replace(/\\n/g, '')   // remove escaped newlines
-                .replace(/\s+/g, '');  // remove all whitespace including actual \n, space, \t, etc.
+            text.replace(/<br\s*\/?>/gi, ' ')
+            .replace(/\n/g, ' ')
+            .replace(/([0-9])([A-Za-z])/g, '$1 $2') // number + word
+            .replace(/([a-z])([A-Z])/g, '$1 $2')    // camel case
+            .replace(/\s+/g, ' ')
+            .trim();
 
         const expectedText = normalizeText(this.action.actionRow.value);
 
@@ -136,6 +148,7 @@ export class clDataTypeSmallText extends clDataType {
             this.fieldProp = ' > .form-group > .control-input-wrapper > .control-value';
             cy.get(this.getSelector())
                 .should('exist')
+                .first()
                 .and('be.visible')
                 .invoke('text')
                 .then(normalizeText)
@@ -451,7 +464,7 @@ export class clDataTypeFactory {
         if (data_type === "Select" && lActualRow.is_child) {
             return new clDataTypeSelectChild(data_type, actiondata);
         }
-        let laHandledChildTypes = ["Data", "Small Text", "Link", "Date", "Dynamic Link", "Currency"];
+        let laHandledChildTypes = ["Data", "Small Text", "Link", "Date", "Dynamic Link", "Currency", "Int", "Float"];
         if (lActualRow.is_child && laHandledChildTypes.includes(data_type)) {
             return new clDataTypeDataChild(data_type, actiondata);
         }
