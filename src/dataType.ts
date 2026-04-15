@@ -66,7 +66,26 @@ export class clDataTypeData extends clDataType {
     }
     input(): void {
         const { value } = this.action.actionRow;
-        cy.get(this.getSelector()).wait(fnGetDelay("medium")).clear({ force: true }).wait(fnGetDelay("medium")).type(value).wait(fnGetDelay("medium")).should('have.value', value).wait(fnGetDelay("medium"))
+        const field = cy.get(this.getSelector())
+            .wait(fnGetDelay("medium"))
+            .should('exist')
+            .and('be.visible');
+    
+        // 🔹 If null/undefined → just clear and exit
+        if (value === null || value === undefined) {
+            field.clear({ force: true })
+                .wait(fnGetDelay("medium"))
+                .should('have.value', '');
+            return;
+        }
+    
+        // 🔹 Normal flow
+        field.clear({ force: true })
+            .wait(fnGetDelay("medium"))
+            .type(value)
+            .wait(fnGetDelay("medium"))
+            .should('have.value', value)
+            .wait(fnGetDelay("medium"))
             .type('{enter}', { force: true })
             .wait(fnGetDelay("medium"));
     }
@@ -86,11 +105,19 @@ export class clDataTypeDataChild extends clDataTypeData {
                 const $el = $field as unknown as JQuery<HTMLElement>;
                 const $input = $el.find('input:visible, textarea:visible');
                 if ($input.length > 0) {
+                    if (value === null || value === undefined) {
+                        cy.wrap($input).clear({ force: true }).blur({ force: true });
+                        return;
+                    }
                     cy.wrap($input).should('be.visible').wait(1000).first().clear({ force: true }).type(value, { force: true }).wait(500).blur({ force: true });
                 }
                 else {
                     cy.wrap($field).dblclick();
                     cy.wait(500);
+                    if (value === null || value === undefined) {
+                        cy.wrap($field).find('input:visible, textarea:visible').should('exist').wait(1000).clear({ force: true })
+                        return;
+                    }
                     cy.wrap($field).find('input:visible, textarea:visible').should('exist').wait(1000).clear({ force: true }).type(value, { force: true }).wait(500).blur({ force: true });
                 }
             });
@@ -165,6 +192,14 @@ export class clDataTypeSmallText extends clDataType {
 
     input(): void {
         const { value } = this.action.actionRow;
+        if (value === null || value === undefined) {
+            cy.get(this.getSelector())
+                .wait(fnGetDelay("short"))
+                .clear()
+                .wait(fnGetDelay("short"))
+                .should('have.value', '');
+            return;
+        }
         cy.get(this.getSelector())
             .wait(fnGetDelay("short"))
             .clear()
@@ -183,6 +218,15 @@ export class clDataTypeLink extends clDataTypeData {
         super(iDataType, ioAction);
     }
     input(): void {
+        const { value } = this.action.actionRow;
+        if (value === null || value === undefined) {
+            cy.get(this.getSelector())
+                .clear({ force: true })
+                .wait(fnGetDelay("medium"))
+                .clear({ force: true }).wait(fnGetDelay("medium"))
+                .should('have.value', '');
+            return;
+        }
         cy.get(this.getSelector())
         .clear({ force: true })
         .wait(fnGetDelay("medium"))
@@ -198,6 +242,10 @@ export class clDataTypeSelect extends clDataTypeData {
         this.fieldProp = `:visible select`
     }
     input(): void {
+        if (this.action.actionRow.value === null || this.action.actionRow.value === undefined) {
+            cy.get(this.getSelector()).select('', { force: true }); // if empty option exists
+            return;
+        }
         cy.get(this.getSelector())
             .wait(fnGetDelay("medium"))
             .select(this.action.actionRow.value, { force: true })
