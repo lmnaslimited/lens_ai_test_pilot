@@ -1262,6 +1262,77 @@ export class clActionApiGet extends clAction {
     }
   }
   
+export class clActionModalDialog extends clAction {
+    // Needed to prevent accidental form submission or Enter-key-triggered actions inside modal
+    private fnAttachEnterBlock(idModal: HTMLElement): void {
+        idModal.addEventListener('keydown', (e: KeyboardEvent) => {
+          // Prevent Enter from triggering unintended submit/actions inside modal fields
+          if (e.key === 'Enter') {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+          }
+        }, true);
+      }
+      private fnProcessRow(idRow: any): void {
+        if (idRow.action) return;
+        // for modal, the field_name will be maintained in message field
+        this.actionRow = {
+          ...idRow,
+          field_name: idRow.message
+        };
+    
+        this.dataType = clDataTypeFactory.createDataType(
+            idRow.data_type,
+          this,
+          this.actionRow
+        );
+        // To validate Default value in the field
+        // We will use the menus for getting default value
+        if (idRow.menus) {
+          this.actionRow.value = idRow.menus;
+          this.dataType.validate();
+          this.actionRow.value = idRow.value;
+        }
+    
+        this.dataType.input();
+      }
+
+    private fnGetModal() {
+        return cy.get('.modal:visible').should('exist');
+    }
+
+    executeAction(): void {
+        // First row defines primary modal action context (e.g., button label)
+        this.actionRow = this.actionData[0];
+        const LbuttonLabel = this.actionRow.value;
+        
+        // Modal must be resolved first because all interactions depend on its DOM scope
+        this.fnGetModal().then(($modal: any) => {
+    
+          // Needed to prevent Enter key from interfering with modal lifecycle events
+          this.fnAttachEnterBlock($modal[0]);
+    
+          // Scope ensures all field interactions happen strictly inside modal context
+          cy.wrap($modal).within(() => {
+            this.actionData.forEach(ldRow => {
+              this.fnProcessRow(ldRow);
+            });
+          });
+        });
+    
+         // Button click must be outside within() because it represents modal completion action
+        if (LbuttonLabel) {
+          cy.get('.modal:visible')
+            .find('button')
+            .contains(LbuttonLabel, { matchCase: false })
+            .should('be.visible')
+            .click({ force: true });
+        }
+    
+        cy.wait(fnGetDelay("medium"));
+    }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate
 abstract class clTestAction implements ifTestAction {
@@ -1336,7 +1407,8 @@ export class clActionFactory {
             "Validate Email Attachments": clActionValidateEmailAttachments,
             "Validate Alert": clActionValidateAlert,
             "API GET": clActionApiGet,
-            "API PUT": clActionApiPut
+            "API PUT": clActionApiPut,
+            "Modal Dialog": clActionModalDialog
         };
 
     /** Action mentioned in the Test Script Header fields */

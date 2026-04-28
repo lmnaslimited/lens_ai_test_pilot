@@ -80,9 +80,11 @@ export class clDataTypeData extends clDataType {
         }
     
         // 🔹 Normal flow
-        field.clear({ force: true })
+        field
+            .scrollIntoView()
+            .clear({ force: true })
             .wait(fnGetDelay("medium"))
-            .type(value)
+            .type(value, { force: true }) //added force because on modal, the field is scrolled to top
             .wait(fnGetDelay("medium"))
             .should('have.value', value)
             .wait(fnGetDelay("medium"))
@@ -482,6 +484,86 @@ export class clDataTypeFloat extends clDataTypeData{
     }
 }
 
+/** @class clDataTypeTableMultiSelect - Handles Table Multiselect fields. */
+export class clDataTypeTableMultiSelect extends clDataType {
+    constructor(iDataType: string, ioAction: ifActionHandler) {
+        super(iDataType, ioAction);
+        this.fieldProp = `input[data-fieldtype="Table MultiSelect"]`;
+    }
+
+    input(): void {
+        const { value, is_hidden } = this.action.actionRow;
+        // Skip execution if no value is provided (nothing to select)
+        if (!value) return;
+
+        // Normalize input into array because API may send comma-separated string or array
+        const values = Array.isArray(value)
+            ? value
+            : value.split(',').map(v => v.trim());
+
+        // Ensure input field is visible before interacting to avoid stale/hidden element errors
+        cy.get(this.getSelector())
+            .should('be.visible')
+            .as('inputField');
+
+        // Clear existing selections before applying new multi-select values
+        cy.get(this.getSelector())
+            .click({ force: true })
+            .type('{selectall}{backspace}', { force: true });
+
+        values.forEach(val => {
+            // Focus input field before typing each value to simulate real user behavior
+            cy.get('@inputField')
+                .click({ force: true })
+                .type(val, { force: true });
+            
+            // Dropdown must appear before selection or validation
+            cy.get('ul[role="listbox"]')
+                .should('be.visible');
+
+            // If field is hidden, ensure value does NOT appear in dropdown (negative validation)
+            // Otherwise select valid option from dropdown list
+            is_hidden
+                ? cy.get('ul[role="listbox"]')
+                    .should('not.contain.text', val)
+                : cy.get('ul[role="listbox"] div[role="option"]') 
+                    .contains(val) 
+                    .click({ force: true });
+
+            cy.wait(fnGetDelay("short"));
+        });
+    }
+
+    validate(): void {
+        const { value, is_hidden } = this.action.actionRow;
+
+        // Skip validation if no value is provided
+        if (!value) return;
+
+        // Normalize values for validation consistency
+        const values = Array.isArray(value)
+            ? value
+            : value.split(',').map(v => v.trim());
+
+        // Validate only visible table multi-select fields
+        cy.get(this.fieldSlector)
+            .filter(':visible')
+            .first()
+            .within(() => {
+
+                values.forEach(val => {
+                    if (!val) return;
+                    
+                    // Validate presence or absence based on hidden flag
+                    is_hidden
+                        ? cy.contains(val).should('not.exist')
+                        : cy.contains(val).should('exist');
+                });
+
+            });
+    }
+}
+
 /**
  * 
  * @class clDataTypeFactory - Factory class for creating data type instances.   
@@ -501,7 +583,8 @@ export class clDataTypeFactory {
         "Datetime": clDataTypeDatetime,
         "Text Editor": clDataTypeTextEditor,
         "Int": clDataTypeInt,
-        "Float": clDataTypeFloat
+        "Float": clDataTypeFloat,
+        "Table Multiselect": clDataTypeTableMultiSelect
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];
