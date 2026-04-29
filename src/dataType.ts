@@ -497,9 +497,9 @@ export class clDataTypeTableMultiSelect extends clDataType {
         if (!value) return;
 
         // Normalize input into array because API may send comma-separated string or array
-        const values = Array.isArray(value)
+        const LaValues = Array.isArray(value)
             ? value
-            : value.split(',').map(v => v.trim());
+            : value.split(',').map(iValue => iValue.trim());
 
         // Ensure input field is visible before interacting to avoid stale/hidden element errors
         cy.get(this.getSelector())
@@ -511,11 +511,11 @@ export class clDataTypeTableMultiSelect extends clDataType {
             .click({ force: true })
             .type('{selectall}{backspace}', { force: true });
 
-        values.forEach(val => {
+        LaValues.forEach(iVal => {
             // Focus input field before typing each value to simulate real user behavior
             cy.get('@inputField')
                 .click({ force: true })
-                .type(val, { force: true });
+                .type(iVal, { force: true });
             
             // Dropdown must appear before selection or validation
             cy.get('ul[role="listbox"]')
@@ -525,9 +525,9 @@ export class clDataTypeTableMultiSelect extends clDataType {
             // Otherwise select valid option from dropdown list
             is_hidden
                 ? cy.get('ul[role="listbox"]')
-                    .should('not.contain.text', val)
+                    .should('not.contain.text', iVal)
                 : cy.get('ul[role="listbox"] div[role="option"]') 
-                    .contains(val) 
+                    .contains(iVal) 
                     .click({ force: true });
 
             cy.wait(fnGetDelay("short"));
@@ -541,9 +541,9 @@ export class clDataTypeTableMultiSelect extends clDataType {
         if (!value) return;
 
         // Normalize values for validation consistency
-        const values = Array.isArray(value)
+        const LaValues = Array.isArray(value)
             ? value
-            : value.split(',').map(v => v.trim());
+            : value.split(',').map(iValue => iValue.trim());
 
         // Validate only visible table multi-select fields
         cy.get(this.fieldSlector)
@@ -551,13 +551,13 @@ export class clDataTypeTableMultiSelect extends clDataType {
             .first()
             .within(() => {
 
-                values.forEach(val => {
-                    if (!val) return;
+                LaValues.forEach(iVal => {
+                    if (!iVal) return;
                     
                     // Validate presence or absence based on hidden flag
                     is_hidden
-                        ? cy.contains(val).should('not.exist')
-                        : cy.contains(val).should('exist');
+                        ? cy.contains(iVal).should('not.exist')
+                        : cy.contains(iVal).should('exist');
                 });
 
             });
@@ -584,7 +584,7 @@ export class clDataTypeFactory {
         "Text Editor": clDataTypeTextEditor,
         "Int": clDataTypeInt,
         "Float": clDataTypeFloat,
-        "Table Multiselect": clDataTypeTableMultiSelect
+        "Table MultiSelect": clDataTypeTableMultiSelect
     };
     static createDataType(data_type: string, actiondata: ifActionHandler, row?: TactionData): clDataType {
         let lActualRow = row || actiondata.actionData[0];
