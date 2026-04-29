@@ -145,7 +145,7 @@ export class clDataTypeDataChild extends clDataTypeData {
 export class clDataTypeSmallText extends clDataType {
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
-        this.fieldProp = `input:visible`;
+        this.fieldProp = `textarea:visible`;
     }
 
     validate(): void {
@@ -439,7 +439,7 @@ class clDataTypeTextEditor extends clDataType {
 
     constructor(iDataType: string, ioAction: ifActionHandler) {
         super(iDataType, ioAction);
-        this.fieldProp = ` .form-group > .ql-container > .ql-editor`;
+        this.fieldProp = ` .ql-container > .ql-editor`;
     }
 
     input(): void {
