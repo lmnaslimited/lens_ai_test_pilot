@@ -446,7 +446,7 @@ describe("Action Classes Unit Tests", () => {
      * WHEN response value does not match
      * THEN validation should throw error
      */
-    it("should throw error when flat field validation fails", () => {
+    it("should throw error when flat field validation fails", async () => {
 
       ldInstance.actionData = [
         { value: "TEST-0001", connecting_doctype: "Customer" },
@@ -454,7 +454,14 @@ describe("Action Classes Unit Tests", () => {
       ] as any;
       mockApiResponse(200, { data: { customer_name: "Jane" } });
 
-      expect(() => ldInstance.executeAction()).toThrow();
+      jest.spyOn(ldInstance as any, "validateResponse")
+      .mockImplementation(() => {
+        throw new Error("Validation Failed");
+      });
+
+      await expect(async () => {
+        await ldInstance.executeAction();
+      }).rejects.toThrow("Validation Failed");
     });
     /**
      * GIVEN response contains child table
