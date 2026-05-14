@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "setup": "node replace.js && ./setup.sh",
+    "setup": "node replace.js && bash setup.sh",
     "env": "node envGenerate.js",
     "upload_testdata": "./setup.sh",
     "start": "ts-node src/fetchdata.ts",
@@ -20,7 +20,7 @@
     "@types/cypress": "^0.1.6",
     "@types/dotenv": "^6.1.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.13.5",
+    "@types/node": "^22.13.5",  
     "@types/node-fetch": "^2.6.12",
     "cypress": "^14.0.3",
     "jest": "^30.2.0",
