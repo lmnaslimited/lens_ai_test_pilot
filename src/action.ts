@@ -1275,10 +1275,9 @@ export class clActionModalDialog extends clAction {
       }
       private fnProcessRow(idRow: any): void {
         if (idRow.action) return;
-        // for modal, the field_name will be maintained in message field
+        // Use current row directly
         this.actionRow = {
-          ...idRow,
-          field_name: idRow.message
+          ...idRow
         };
     
         this.dataType = clDataTypeFactory.createDataType(
