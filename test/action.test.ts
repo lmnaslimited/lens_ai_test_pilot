@@ -1173,62 +1173,112 @@ Purpose:
   // Test suite for Modal Dialog action class
   describe("clActionModalDialog", () => {
     let ldInstance: clActionModalDialog;
-    let fnMockAddEventListener = jest.fn() // Mock for modal DOM event listener
-    let ldMockDT = {
-      input: jest.fn(), // mock input method of datatype
-      validate: jest.fn(), // mock validate method of datatype
+  
+    // Mock DOM event listener attached to modal
+    let fnMockAddEventListener: jest.Mock<
+      (
+        _event: unknown,
+        idCb: Function,
+        useCapture?: boolean,
+      ) => void
+    >;
+
+    // Mock datatype object returned from factory
+    let ldMockDT: {
+      input: jest.Mock;
+      validate: jest.Mock;
     };
+  
     beforeEach(() => {
       jest.clearAllMocks();
-      laMockActionData[0].action = "Modal Dialog";
-      laMockActionData[0].value = "Create";
-
-      // mock master data
+  
+      // Reset reusable mocks
+      fnMockAddEventListener = jest.fn();
+  
+      ldMockDT = {
+        input: jest.fn(),
+        validate: jest.fn(),
+      };
+  
+      // Reset action data
+      laMockActionData.length = 0;
+  
+      laMockActionData.push({
+        action: "Modal Dialog",
+        value: "Create",
+      } as TactionData);
+  
       laMockActionData.push({
         message: "lost_reason",
         value: "Lost to competition",
-        data_type: "Data"
+        data_type: "Data",
       } as TactionData);
-      // // Mock Cypress within(), wrap and get scope
-      cyChain.within = jest.fn((cb: Function) => {
-        cb();
+  
+      // Mock Cypress chain
+      cyChain.within = jest.fn((idCb: Function) => {
+        idCb();
         return cyChain;
-      }),
+      });
+  
+      cyChain.contains = jest.fn(() => cyChain);
+  
+      cyChain.click = jest.fn(() => cyChain);
+  
+      cyChain.should = jest.fn(() => cyChain);
+  
       cyMock.wrap = jest.fn(() => cyChain);
+  
+      cyMock.wait = jest.fn();
+  
       cyMock.get.mockReturnValue({
         should: jest.fn(() => ({
-          then: (idCb: Function) =>
-            idCb([{ addEventListener: fnMockAddEventListener }]),
+          then: (idCb: Function) => {
+            idCb([
+              {
+                addEventListener: fnMockAddEventListener,
+              },
+            ]);
+          },
         })),
-        find: jest.fn(() => cyChain)
+        find: jest.fn(() => cyChain),
       });
-      // spy on datatype factory so real logic is not executed
-      jest.spyOn(clDataTypeFactory, "createDataType")
+  
+      // Mock datatype factory
+      jest
+        .spyOn(clDataTypeFactory, "createDataType")
         .mockReturnValue(ldMockDT as any);
+  
+      // Mock delay
+      (global as any).fnGetDelay = jest.fn(() => 500);
     });
-    
+  
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+  
     it("creates clActionModalDialog when action is Modal Dialog", () => {
-      // GIVEN: Valid action data with "Modal Dialog"
-      // WHEN: Factory creates action instance
+      // GIVEN + WHEN
       const LResult = clActionFactory.createAction(
         "Modal Dialog",
         laMockActionData,
       );
-      // THEN: It should return Modal Dialog instance
+  
+      // THEN
       expect(LResult).toBeInstanceOf(clActionModalDialog);
     });
-
-    it("returns undefined or invalid instance for unsupported action", () => {
-      // GIVEN: Invalid action type
-      // WHEN: Factory is called with invalid action
-      // THEN: It should throw error
+  
+    it("throws error for invalid action type", () => {
+      // GIVEN + WHEN + THEN
       expect(() =>
-        clActionFactory.createAction("Invalid Action", laMockActionData),
+        clActionFactory.createAction(
+          "Invalid Action",
+          laMockActionData,
+        ),
       ).toThrow("Invalid action type: Invalid Action");
     });
-
-    it("handles missing modal gracefully (negative case)", () => {
-      // GIVEN: Modal element is not found
+  
+    it("throws error when modal is not found", () => {
+      // GIVEN
       cyMock.get.mockReturnValue({
         should: jest.fn(() => ({
           then: () => {
@@ -1236,93 +1286,450 @@ Purpose:
           },
         })),
       });
-      // WHEN: executeAction is triggered
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-      // THEN: It should throw modal not found error
-      expect(() => ldInstance.executeAction()).toThrow("Modal not found");
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN + THEN
+      expect(() => ldInstance.executeAction()).toThrow(
+        "Modal not found",
+      );
     });
-
-    it("locates modal and enters execution flow", () => {
-      // GIVEN: Valid modal exists
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-      // WHEN: executeAction is called
+  
+    it("gets visible modal during execution", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: Modal selector should be called
-      expect(cyMock.get).toHaveBeenCalledWith(".modal:visible");
+  
+      // THEN
+      expect(cyMock.get).toHaveBeenCalledWith(
+        ".modal:visible",
+      );
     });
-
-    it("attaches keydown listener and blocks Enter key", () => {
-      // GIVEN: Modal is available and datatype mocked
-      jest.spyOn(clDataTypeFactory, "createDataType")
-        .mockReturnValue({ input: jest.fn(), validate: jest.fn() } as any);
-    
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-      // WHEN: executeAction runs
+  
+    it("attaches keydown listener to modal", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: keydown listener should be attached
+  
+      // THEN
       expect(fnMockAddEventListener).toHaveBeenCalledWith(
         "keydown",
         expect.any(Function),
-        true
+        true,
       );
     });
-    it("clicks modal button when label exists", () => {
-      // GIVEN: Modal has button label defined
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-      // WHEN: executeAction runs
+  
+    it("prevents Enter key default behavior", () => {
+      // GIVEN
+      let fnKeydownHandler!: Function;
+  
+      fnMockAddEventListener = jest.fn(
+        (_event: unknown, idCb: Function) => {
+          fnKeydownHandler = idCb;
+        },
+      );
+  
+      cyMock.get.mockReturnValue({
+        should: jest.fn(() => ({
+          then: (idCb: Function) => {
+            idCb([
+              {
+                addEventListener: fnMockAddEventListener,
+              },
+            ]);
+          },
+        })),
+        find: jest.fn(() => cyChain),
+      });
+  
+      const ldPreventDefault = jest.fn();
+  
+      const ldStopImmediate = jest.fn();
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: modal should be queried for interaction
-      expect(cyMock.get).toHaveBeenCalledWith(".modal:visible");
+  
+      fnKeydownHandler({
+        key: "Enter",
+        preventDefault: ldPreventDefault,
+        stopImmediatePropagation: ldStopImmediate,
+      });
+  
+      // THEN
+      expect(ldPreventDefault).toHaveBeenCalled();
+  
+      expect(ldStopImmediate).toHaveBeenCalled();
     });
-    it("does not click modal button when label is missing", () => {
-      // GIVEN: Button label is empty
-      laMockActionData[0].value = "";
-    
-      const mockClick = jest.fn();
-      // WHEN: executeAction runs
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-    
+  
+    it("does not block non-enter key events", () => {
+      // GIVEN
+      let fnKeydownHandler!: Function;
+  
+      fnMockAddEventListener = jest.fn(
+        (_event: unknown, idCb: Function) => {
+          fnKeydownHandler = idCb;
+        },
+      );
+  
+      cyMock.get.mockReturnValue({
+        should: jest.fn(() => ({
+          then: (idCb: Function) => {
+            idCb([
+              {
+                addEventListener: fnMockAddEventListener,
+              },
+            ]);
+          },
+        })),
+        find: jest.fn(() => cyChain),
+      });
+  
+      const ldPreventDefault = jest.fn();
+  
+      const ldStopImmediate = jest.fn();
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: No click should happen (implicit validation)
-      expect(mockClick).not.toHaveBeenCalled();
+  
+      fnKeydownHandler({
+        key: "Escape",
+        preventDefault: ldPreventDefault,
+        stopImmediatePropagation: ldStopImmediate,
+      });
+  
+      // THEN
+      expect(ldPreventDefault).not.toHaveBeenCalled();
+  
+      expect(ldStopImmediate).not.toHaveBeenCalled();
     });
-
-    it("processes all modal rows via datatype factory", () => {
-      // GIVEN: Multiple modal rows exist
+  
+    it("processes rows inside modal scope", () => {
+      // GIVEN
       ldInstance = new clActionModalDialog(
         "Modal Dialog",
         structuredClone(laMockActionData),
       );
-      // WHEN: executeAction runs
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: input should be triggered
+  
+      // THEN
+      expect(cyChain.within).toHaveBeenCalled();
+    });
+  
+    it("creates datatype using datatype factory", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(
+        clDataTypeFactory.createDataType,
+      ).toHaveBeenCalledWith(
+        "Data",
+        ldInstance,
+        expect.any(Object),
+      );
+    });
+  
+    it("calls datatype input method", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
       expect(ldMockDT.input).toHaveBeenCalled();
     });
-
-    it("skips rows with action flag", () => {
-      // GIVEN: One row contains action
-      laMockActionData.push({ action: "Onload" } as any);
-    
-      ldInstance = new clActionModalDialog("Modal Dialog", laMockActionData);
-      // WHEN: executeAction runs
+  
+    it("calls validate when menus exist", () => {
+      // GIVEN
+      (laMockActionData[1] as any).menus = "Lost";
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: only one rows should be processed
+  
+      // THEN
+      expect(ldMockDT.validate).toHaveBeenCalled();
+    });
+  
+    it("restores original value after validation", () => {
+      // GIVEN
+      (laMockActionData[1] as any).menus = "Lost";
+  
+      const ldInputSpy = jest.fn();
+  
+      jest
+        .spyOn(clDataTypeFactory, "createDataType")
+        .mockReturnValue({
+          input: ldInputSpy,
+          validate: jest.fn(),
+        } as any);
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(ldInputSpy).toHaveBeenCalled();
+  
+      expect(laMockActionData[1].value).toBe(
+        "Lost to competition",
+      );
+    });
+  
+    it("skips rows containing action property", () => {
+      // GIVEN
+      laMockActionData.push({
+        action: "Onload",
+      } as any);
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
       expect(ldMockDT.input).toHaveBeenCalledTimes(1);
     });
-
-    it("call validate to check default value, when menus are maintained", () => {
-      // GIVEN: Row contains menu values
-      laMockActionData[1].menus = "Lost"
-      
+  
+    it("clicks modal button when label exists", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(cyChain.contains).toHaveBeenCalledWith(
+        "Create",
+        { matchCase: false },
+      );
+  
+      expect(cyChain.click).toHaveBeenCalledWith({
+        force: true,
+      });
+    });
+  
+    it("does not click button when label is empty", () => {
+      // GIVEN
+      laMockActionData[0].value = "";
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(cyChain.click).not.toHaveBeenCalled();
+    });
+  
+    it("does not click button when label is undefined", () => {
+      // GIVEN
+      (laMockActionData[0] as any).value = undefined;
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(cyChain.click).not.toHaveBeenCalled();
+    });
+  
+    it("waits using medium delay after execution", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(cyMock.wait).toHaveBeenCalledWith(500);
+    });
+  
+    it("handles empty actionData safely", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        [],
+      );
+  
+      // WHEN + THEN
+      expect(() => ldInstance.executeAction()).toThrow();
+    });
+  
+    it("handles datatype factory returning invalid datatype", () => {
+      // GIVEN
+      jest
+        .spyOn(clDataTypeFactory, "createDataType")
+        .mockReturnValue(undefined as any);
+  
       ldInstance = new clActionModalDialog(
         "Modal Dialog",
         structuredClone(laMockActionData),
       );
-      // WHEN: executeAction runs
+  
+      // WHEN + THEN
+      expect(() => ldInstance.executeAction()).toThrow();
+    });
+  
+    it("handles datatype input failure", () => {
+      // GIVEN
+      jest
+        .spyOn(clDataTypeFactory, "createDataType")
+        .mockReturnValue({
+          input: jest.fn(() => {
+            throw new Error("Input failed");
+          }),
+          validate: jest.fn(),
+        } as any);
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN + THEN
+      expect(() => ldInstance.executeAction()).toThrow(
+        "Input failed",
+      );
+    });
+  
+    it("handles datatype validate failure", () => {
+      // GIVEN
+      (laMockActionData[1] as any).menus = "Lost";
+  
+      jest
+        .spyOn(clDataTypeFactory, "createDataType")
+        .mockReturnValue({
+          input: jest.fn(),
+          validate: jest.fn(() => {
+            throw new Error("Validation failed");
+          }),
+        } as any);
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN + THEN
+      expect(() => ldInstance.executeAction()).toThrow(
+        "Validation failed",
+      );
+    });
+  
+    it("handles missing data_type gracefully", () => {
+      // GIVEN
+      (laMockActionData[1] as any).data_type = undefined;
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
       ldInstance.executeAction();
-      // THEN: validate and input should be triggered
-      expect(ldMockDT.validate).toHaveBeenCalled();
+  
+      // THEN
+      expect(
+        clDataTypeFactory.createDataType as jest.Mock,
+      ).toHaveBeenCalledWith(
+        undefined,
+        ldInstance,
+        expect.any(Object),
+      );
+    });
+  
+    it("handles rows without menus", () => {
+      // GIVEN
+      (laMockActionData[1] as any).menus = undefined;
+  
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        structuredClone(laMockActionData),
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(ldMockDT.validate).not.toHaveBeenCalled();
+  
       expect(ldMockDT.input).toHaveBeenCalled();
+    });
+  
+    it("finds button from visible modal only", () => {
+      // GIVEN
+      ldInstance = new clActionModalDialog(
+        "Modal Dialog",
+        laMockActionData,
+      );
+  
+      // WHEN
+      ldInstance.executeAction();
+  
+      // THEN
+      expect(cyMock.get).toHaveBeenCalledWith(
+        ".modal:visible",
+      );
     });
   });
 });
