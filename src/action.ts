@@ -238,7 +238,9 @@ export class clActionOnTab extends clAction {
         this.actionRow = this.actionData[0];
         const Ltab = this.actionRow.tab;
         if (!Ltab) return;
-        cy.get('.form-tabs .nav-item a').filter(`:contains("${Ltab}")`).first().click({ force: true });
+        // cy.get('.form-tabs .nav-item a').filter(`:contains("${Ltab}")`).first().click({ force: true });
+        // When upgrade is done tab selector got changed
+        cy.contains('.nav-link', Ltab).click({ force: true });
         cy.wait(fnGetDelay('medium'));
         
     }
@@ -1275,10 +1277,9 @@ export class clActionModalDialog extends clAction {
       }
       private fnProcessRow(idRow: any): void {
         if (idRow.action) return;
-        // for modal, the field_name will be maintained in message field
+        // Use current row directly
         this.actionRow = {
-          ...idRow,
-          field_name: idRow.message
+          ...idRow
         };
     
         this.dataType = clDataTypeFactory.createDataType(
