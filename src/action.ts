@@ -1368,12 +1368,12 @@ export class clActionApiMethodGet extends clActionApiGet {
         iEndpoint: string
       ): void {
       
-        if (!this.actionRow.payload) {
-          throw new Error(`payload missing for ${iEndpoint}`);
+        if (!this.actionRow.description) {
+          throw new Error(`payload (in description) is missing for ${iEndpoint}`);
         }
       
         const LdActual = idResponse.body;
-        const LdExpected = JSON.parse(this.actionRow.payload);
+        const LdExpected = JSON.parse(this.actionRow.description);
 
         if (LdActual == null) {
           throw new Error(`Response missing for ${iEndpoint}`);
@@ -1430,7 +1430,7 @@ export class clActionApiMethodPost extends clActionApiMethodGet {
     // Use configured payload directly as request body
     protected buildRequestBody(): Record<string, any> {
 
-        if (!this.actionRow.payload) {
+        if (!this.actionRow.description) {
             throw new Error(`
                 API METHOD POST:
                 payload field is missing.
@@ -1438,14 +1438,14 @@ export class clActionApiMethodPost extends clActionApiMethodGet {
         }
 
         try {
-            return JSON.parse(this.actionRow.payload);
+            return JSON.parse(this.actionRow.description);
         } catch (error) {
             throw new Error(`
                 API METHOD POST:
                 Invalid payload JSON.
 
                 Payload:
-                ${this.actionRow.payload}
+                ${this.actionRow.description}
             `);
         }
     }
