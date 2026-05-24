@@ -1,11 +1,19 @@
 import * as _ from "lodash";
 import { expect as jestExpect } from "@jest/globals";
 
+// ---------------------------------------------------
+// Import action classes under test
+// ---------------------------------------------------
+
 import {
   clActionApiMethodGet,
   clActionApiMethodPost,
   clActionFactory,
 } from "../src/action";
+
+// ---------------------------------------------------
+// Import TypeScript interfaces used in tests
+// ---------------------------------------------------
 
 import {
   ifTestContext,
@@ -16,39 +24,71 @@ import {
 // MOCK CYPRESS
 // ---------------------------------------------------
 
+// ---------------------------------------------------
+// Mock global Cypress `cy` object
+// Used for request, wrap, and logging in tests
+// ---------------------------------------------------
+
 (global as any).cy = {
+
+  // Mock HTTP request
   request: jest.fn(),
 
+  // Mock cy.wrap() to immediately resolve value
   wrap: jest.fn((val) => ({
     then: (cb: any) => cb(val),
   })),
 
+  // Mock logging function
   log: jest.fn(),
+
 } as any;
 
+// ---------------------------------------------------
+// Mock global Cypress namespace
+// Provides env variables and lodash utilities
+// ---------------------------------------------------
+
 (globalThis as any).Cypress = {
+
+  // Mock Cypress environment variables
   env: jest.fn(),
 
+  // Provide lodash isMatch for internal validation
   _: {
     isMatch: _.isMatch,
   },
+
 };
 
+// ---------------------------------------------------
+// Mock Chai-style expect
+// Used because production code uses expect().to.be.true
+// ---------------------------------------------------
+
 (global as any).expect = (value: any) => ({
-    to: {
-      be: {
-        get true() {
-  
-          if (value !== true) {
-            throw new Error(
-              `expected ${value} to be true`
-            );
-          }
-  
-          return true;
-        },
+
+  to: {
+
+    be: {
+
+      // Getter for `.true` assertion
+      get true() {
+
+        // Throw error if value is not true
+        if (value !== true) {
+          throw new Error(
+            `expected ${value} to be true`
+          );
+        }
+
+        return true;
       },
+
     },
+
+  },
+
 });
 
 // ---------------------------------------------------
@@ -57,19 +97,49 @@ import {
 
 describe("API Method Action Classes", () => {
 
+  // ---------------------------------------------------
+  // Test execution context (shared state per run)
+  // ---------------------------------------------------
+
   let ldContext: ifTestContext;
+
+  // ---------------------------------------------------
+  // Test lab configuration object
+  // ---------------------------------------------------
 
   let ldTestLab: any;
 
+  // ---------------------------------------------------
+  // Mock action data used for GET/POST tests
+  // ---------------------------------------------------
+
   let laMockActionData: TactionData[];
+
+  // ---------------------------------------------------
+  // GET action instance
+  // ---------------------------------------------------
 
   let ldGetInstance: clActionApiMethodGet;
 
+  // ---------------------------------------------------
+  // POST action instance
+  // ---------------------------------------------------
+
   let ldPostInstance: clActionApiMethodPost;
+
+  // ---------------------------------------------------
+  // Runs before each test
+  // Resets mocks and initializes fresh instances
+  // ---------------------------------------------------
 
   beforeEach(() => {
 
+    // Reset all Jest mocks
     jest.clearAllMocks();
+
+    // ---------------------------------------------------
+    // Initialize test execution context
+    // ---------------------------------------------------
 
     ldContext = {
       currentScript: null,
@@ -82,9 +152,18 @@ describe("API Method Action Classes", () => {
       isTestPassed: true,
     };
 
+    // ---------------------------------------------------
+    // Initialize test lab container
+    // ---------------------------------------------------
+
     ldTestLab = {
       test_lab_script: [],
     };
+
+    // ---------------------------------------------------
+    // Mock API action row data
+    // Represents a single test configuration row
+    // ---------------------------------------------------
 
     laMockActionData = [
       {
@@ -125,19 +204,31 @@ describe("API Method Action Classes", () => {
       } as TactionData,
     ];
 
+    // ---------------------------------------------------
+    // Mock Cypress environment variables
+    // ---------------------------------------------------
+
     ((globalThis as any).Cypress.env as jest.Mock)
       .mockImplementation((iKey: string) => {
 
+        // Base URL for API calls
         if (iKey === "TARGET_URL") {
           return "http://localhost:8000";
         }
 
+        // Authentication token
         if (iKey === "TARGET_KEY") {
           return "token-123";
         }
 
+        // Default fallback
         return null;
+
       });
+
+    // ---------------------------------------------------
+    // Create GET action instance
+    // ---------------------------------------------------
 
     ldGetInstance = new clActionApiMethodGet(
       "API Method GET",
@@ -146,8 +237,13 @@ describe("API Method Action Classes", () => {
       ldTestLab
     );
 
+    // Attach action row to instance
     (ldGetInstance as any).actionRow =
       laMockActionData[0];
+
+    // ---------------------------------------------------
+    // Create POST action instance
+    // ---------------------------------------------------
 
     ldPostInstance = new clActionApiMethodPost(
       "API Method POST",
@@ -156,8 +252,10 @@ describe("API Method Action Classes", () => {
       ldTestLab
     );
 
+    // Attach action row to instance
     (ldPostInstance as any).actionRow =
       laMockActionData[0];
+
   });
 
   // ===================================================
@@ -165,6 +263,10 @@ describe("API Method Action Classes", () => {
   // ===================================================
 
   describe("Factory", () => {
+
+    // ---------------------------------------------------
+    // Verify GET action factory creation
+    // ---------------------------------------------------
 
     it("should create clActionApiMethodGet instance", () => {
 
@@ -176,7 +278,12 @@ describe("API Method Action Classes", () => {
 
       jestExpect(LdInstance)
         .toBeInstanceOf(clActionApiMethodGet);
+
     });
+
+    // ---------------------------------------------------
+    // Verify POST action factory creation
+    // ---------------------------------------------------
 
     it("should create clActionApiMethodPost instance", () => {
 
@@ -188,22 +295,27 @@ describe("API Method Action Classes", () => {
 
       jestExpect(LdInstance)
         .toBeInstanceOf(clActionApiMethodPost);
+
     });
 
   });
 
   // ===================================================
-  // API METHOD GET
+  // API METHOD GET TEST SUITE
+  // This block tests all behavior related to GET API action class
+  // including endpoint building and response validation logic
   // ===================================================
 
   describe("clActionApiMethodGet", () => {
 
     // ---------------------------------------------------
-    // buildEndpoint
+    // buildEndpoint TESTS
+    // Tests URL construction logic for GET API method
     // ---------------------------------------------------
 
     describe("buildEndpoint", () => {
 
+      // Test: correct endpoint is constructed from base URL + method path
       it("should build correct endpoint", () => {
 
         const LEndpoint =
@@ -217,6 +329,7 @@ describe("API Method Action Classes", () => {
         });
       });
 
+      // Test: trailing slash in TARGET_URL should be removed
       it("should remove trailing slash from host", () => {
 
         ((globalThis as any).Cypress.env as jest.Mock)
@@ -240,6 +353,7 @@ describe("API Method Action Classes", () => {
         });
       });
 
+      // Test: menus field should be trimmed before forming endpoint
       it("should trim menus field", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -258,6 +372,7 @@ describe("API Method Action Classes", () => {
         });
       });
 
+      // Test: missing TARGET_URL should throw configuration error
       it("should throw when TARGET_URL missing", () => {
 
         ((globalThis as any).Cypress.env as jest.Mock)
@@ -270,6 +385,7 @@ describe("API Method Action Classes", () => {
         );
       });
 
+      // Test: empty menus field should throw validation error
       it("should throw when menus missing", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -283,6 +399,7 @@ describe("API Method Action Classes", () => {
         );
       });
 
+      // Test: completely missing actionRow should throw error
       it("should throw when menus undefined", () => {
 
         (ldGetInstance as any).actionRow = {};
@@ -292,6 +409,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: nested method paths should still be supported
       it("should allow nested method paths", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -313,11 +431,13 @@ describe("API Method Action Classes", () => {
     });
 
     // ---------------------------------------------------
-    // validateResponse
+    // validateResponse TESTS
+    // Tests response validation logic for GET API method
     // ---------------------------------------------------
 
     describe("validateResponse", () => {
 
+      // Test: response should pass when expected subset matches actual
       it("should pass subset validation", () => {
 
         const LdResponse = {
@@ -335,6 +455,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: successful validation should log confirmation message
       it("should log validation passed", () => {
 
         const LdResponse = {
@@ -353,6 +474,7 @@ describe("API Method Action Classes", () => {
         );
       });
 
+      // Test: missing payload should throw error
       it("should throw when payload missing", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -367,6 +489,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: missing response body should throw error
       it("should throw when response missing", () => {
 
         jestExpect(() =>
@@ -377,6 +500,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: mismatch between expected and actual values should fail validation
       it("should fail validation when values mismatch", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -397,6 +521,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: expected subset should be logged on validation failure
       it("should log expected subset on failure", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -427,6 +552,7 @@ describe("API Method Action Classes", () => {
         }
       });
 
+      // Test: actual response object should be logged on failure
       it("should log actual object on failure", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -457,6 +583,7 @@ describe("API Method Action Classes", () => {
         }
       });
 
+      // Test: nested object validation should pass when subset matches
       it("should validate nested objects", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -488,6 +615,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: array subset validation should pass
       it("should validate arrays", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -513,6 +641,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: invalid JSON in expected payload should throw error
       it("should throw for invalid JSON", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -531,6 +660,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: boolean values should be validated correctly
       it("should validate boolean values", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -552,6 +682,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: numeric values should match exactly
       it("should validate numeric values", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -572,6 +703,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: numeric mismatch should fail validation
       it("should fail for numeric mismatch", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -592,6 +724,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: empty object validation should pass
       it("should validate empty objects", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -608,6 +741,7 @@ describe("API Method Action Classes", () => {
         ).not.toThrow();
       });
 
+      // Test: null value validation should pass
       it("should validate null fields", () => {
 
         (ldGetInstance as any).actionRow = {
@@ -633,13 +767,21 @@ describe("API Method Action Classes", () => {
   });
 
   // ===================================================
-  // API METHOD POST
+  // API METHOD POST TEST SUITE
+  // This block tests POST API action class behavior
+  // including request building, headers, and validation settings
   // ===================================================
 
   describe("clActionApiMethodPost", () => {
 
+    // ---------------------------------------------------
+    // getMethod TESTS
+    // Verifies HTTP method type returned by POST class
+    // ---------------------------------------------------
+
     describe("getMethod", () => {
 
+      // Test: method should always return POST
       it("should return POST", () => {
 
         jestExpect(
@@ -649,8 +791,14 @@ describe("API Method Action Classes", () => {
 
     });
 
+    // ---------------------------------------------------
+    // getValidStatusCodes TESTS
+    // Validates allowed HTTP status codes for POST requests
+    // ---------------------------------------------------
+
     describe("getValidStatusCodes", () => {
 
+      // Test: 200 OK should be valid
       it("should allow 200", () => {
 
         const codes =
@@ -660,6 +808,7 @@ describe("API Method Action Classes", () => {
         jestExpect(codes).toContain(200);
       });
 
+      // Test: 201 Created should be valid
       it("should allow 201", () => {
 
         const codes =
@@ -669,6 +818,7 @@ describe("API Method Action Classes", () => {
         jestExpect(codes).toContain(201);
       });
 
+      // Test: 404 Not Found should NOT be valid
       it("should not allow 404", () => {
 
         const codes =
@@ -680,8 +830,14 @@ describe("API Method Action Classes", () => {
 
     });
 
+    // ---------------------------------------------------
+    // shouldValidateResponse TESTS
+    // Controls whether POST response validation is enabled
+    // ---------------------------------------------------
+
     describe("shouldValidateResponse", () => {
 
+      // Test: POST validation should be disabled
       it("should disable validation", () => {
 
         jestExpect(
@@ -692,8 +848,14 @@ describe("API Method Action Classes", () => {
 
     });
 
+    // ---------------------------------------------------
+    // getHeaders TESTS
+    // Validates HTTP headers generated for POST request
+    // ---------------------------------------------------
+
     describe("getHeaders", () => {
 
+      // Test: Authorization header should contain token
       it("should return authorization header", () => {
 
         const headers =
@@ -703,6 +865,7 @@ describe("API Method Action Classes", () => {
           .toBe("token-123");
       });
 
+      // Test: Content-Type should be JSON
       it("should return content type header", () => {
 
         const headers =
@@ -712,6 +875,7 @@ describe("API Method Action Classes", () => {
           .toBe("application/json");
       });
 
+      // Test: Cookie header should include guest session
       it("should return cookie header", () => {
 
         const headers =
@@ -723,8 +887,14 @@ describe("API Method Action Classes", () => {
 
     });
 
+    // ---------------------------------------------------
+    // buildRequestBody TESTS
+    // Validates request body parsing and transformation logic
+    // ---------------------------------------------------
+
     describe("buildRequestBody", () => {
 
+      // Test: valid JSON should be parsed correctly
       it("should parse payload JSON", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -742,6 +912,7 @@ describe("API Method Action Classes", () => {
         });
       });
 
+      // Test: empty payload should throw error
       it("should throw when payload missing", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -754,6 +925,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: invalid JSON should throw error
       it("should throw for invalid JSON", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -766,6 +938,7 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
+      // Test: nested object structure should be preserved
       it("should parse nested objects", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -784,6 +957,7 @@ describe("API Method Action Classes", () => {
           .toBe("test");
       });
 
+      // Test: arrays should be parsed correctly
       it("should parse arrays", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -802,6 +976,7 @@ describe("API Method Action Classes", () => {
         jestExpect(LdBody.items).toHaveLength(2);
       });
 
+      // Test: boolean values should be preserved
       it("should preserve boolean values", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -817,6 +992,7 @@ describe("API Method Action Classes", () => {
         jestExpect(LdBody.success).toBe(true);
       });
 
+      // Test: null values should be preserved
       it("should preserve null values", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -832,6 +1008,7 @@ describe("API Method Action Classes", () => {
         jestExpect(LdBody.value).toBeNull();
       });
 
+      // Test: numeric values should be preserved
       it("should preserve numeric values", () => {
 
         (ldPostInstance as any).actionRow = {
@@ -847,6 +1024,7 @@ describe("API Method Action Classes", () => {
         jestExpect(LdBody.count).toBe(100);
       });
 
+      // Test: empty object should be handled correctly
       it("should parse empty object", () => {
 
         (ldPostInstance as any).actionRow = {
