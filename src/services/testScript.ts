@@ -268,7 +268,7 @@ export class clTestRunnerUiService {
       if (!LdScriptRow) return;
       
       // Create run log entry and update associated Test Log child records
-      // this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
+      this.postAndUpdateRunLog(LdScriptRow, iName, LdLogs, LdResult);
       this.ldContext.currentScriptRowIdx++;
     });
 
