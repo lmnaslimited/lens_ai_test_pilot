@@ -1361,7 +1361,7 @@ export class clActionApiMethodGet extends clActionApiGet {
     }
 
     // this method use Lodask from cypress
-    // this is best suitable for complex nexted comparison
+    // this is best suitable for complex nested comparison
     // it will check all the items mentioned in payload are there in actual, that's it
     protected validateResponse(
         idResponse: Cypress.Response<any>,
