@@ -1361,7 +1361,7 @@ export class clActionApiMethodGet extends clActionApiGet {
     }
 
     // this method use Lodask from cypress
-    // this is best suitable for complex nexted comparition
+    // this is best suitable for complex nexted comparison
     // it will check all the items mentioned in payload are there in actual, that's it
     protected validateResponse(
         idResponse: Cypress.Response<any>,
@@ -1382,14 +1382,14 @@ export class clActionApiMethodGet extends clActionApiGet {
         // Use Cypress's built-in Lodash instance
         
         // _.isMatch deeply checks if LdActual contains all fields of LdExpected
-        const isMatch = Cypress._.isMatch(LdActual, LdExpected);
+        const LIsMatch = Cypress._.isMatch(LdActual, LdExpected);
           
-        if (!isMatch) {
+        if (!LIsMatch) {
             cy.log("Expected Subset:", JSON.stringify(LdExpected));
             cy.log("Actual Object:", JSON.stringify(LdActual));
         }
           
-        expect(isMatch).to.be.true;
+        expect(LIsMatch).to.be.true;
         cy.log("✔ validation passed");
       }
 }
