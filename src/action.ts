@@ -1215,7 +1215,7 @@ export class clActionApiGet extends clAction {
                     this.validateResponse(response, endpoint);
                 }
 
-                cy.log(`API ${method} Completed Successfully`);
+                cy.log(`${this.action} Completed Successfully`);
             });
         });
     }
@@ -1334,6 +1334,123 @@ export class clActionModalDialog extends clAction {
     }
 }
 
+//
+// API METHOD GET ACTION
+// Executes /api/method/* GET APIs
+//
+export class clActionApiMethodGet extends clActionApiGet {
+
+    // Build /api/method endpoint directly from menus field
+    protected buildEndpoint(): Cypress.Chainable<string> {
+
+        const LTargetHost = Cypress.env("TARGET_URL");
+
+        if (!LTargetHost) {
+            throw new Error("API METHOD: TARGET_URL not configured.");
+        }
+
+        const LMenus = this.actionRow.menus?.trim();
+
+        if (!LMenus) {
+            throw new Error("API METHOD: menus field is missing.");
+        }
+
+        return cy.wrap(
+            `${LTargetHost.replace(/\/$/, "")}/api/method/${LMenus}`
+        );
+    }
+
+    // this method use Lodask from cypress
+    // this is best suitable for complex nested comparison
+    // it will check all the items mentioned in payload are there in actual, that's it
+    protected validateResponse(
+        idResponse: Cypress.Response<any>,
+        iEndpoint: string
+      ): void {
+      
+        if (!this.actionRow.description) {
+          throw new Error(`payload (in description) is missing for ${iEndpoint}`);
+        }
+      
+        const LdActual = idResponse.body;
+        const LdExpected = JSON.parse(this.actionRow.description);
+
+        if (LdActual == null) {
+          throw new Error(`Response missing for ${iEndpoint}`);
+        }
+      
+        // Use Cypress's built-in Lodash instance
+        
+        // _.isMatch deeply checks if LdActual contains all fields of LdExpected
+        const LIsMatch = Cypress._.isMatch(LdActual, LdExpected);
+          
+        if (!LIsMatch) {
+            cy.log("Expected Subset:", JSON.stringify(LdExpected));
+            cy.log("Actual Object:", JSON.stringify(LdActual));
+        }
+          
+        expect(LIsMatch).to.be.true;
+        cy.log("✔ validation passed");
+      }
+}
+
+
+//
+// API METHOD POST ACTION
+// Executes /api/method/* POST APIs
+//
+export class clActionApiMethodPost extends clActionApiMethodGet {
+
+    // Override request method
+    protected getMethod(): Cypress.HttpMethod {
+        return "POST";
+    }
+
+    // POST APIs may return 200 or 201
+    protected getValidStatusCodes(): number[] {
+        return [200, 201];
+    }
+
+    // Disable response validation
+    protected shouldValidateResponse(): boolean {
+        return false;
+    }
+
+    // Provide required headers for authenticated API update execution
+    // Includes authorization token and JSON content format
+    protected getHeaders(): Record<string, any> {
+        return {
+          "Authorization": Cypress.env("TARGET_KEY"),
+          "Cookie":
+            "full_name=Guest; sid=Guest; system_user=no; user_id=Guest; user_image=",
+          "Content-Type": "application/json",
+        };
+    }
+
+    // Use configured payload directly as request body
+    protected buildRequestBody(): Record<string, any> {
+
+        if (!this.actionRow.description) {
+            throw new Error(`
+                API METHOD POST:
+                payload field is missing.
+            `);
+        }
+
+        try {
+            return JSON.parse(this.actionRow.description);
+        } catch (error) {
+            throw new Error(`
+                API METHOD POST:
+                Invalid payload JSON.
+
+                Payload:
+                ${this.actionRow.description}
+            `);
+        }
+    }
+}
+
 // abstract class for Test SCript Header level
 // to determin Create or UPdate
 abstract class clTestAction implements ifTestAction {
@@ -1409,7 +1526,9 @@ export class clActionFactory {
             "Validate Alert": clActionValidateAlert,
             "API GET": clActionApiGet,
             "API PUT": clActionApiPut,
-            "Modal Dialog": clActionModalDialog
+            "Modal Dialog": clActionModalDialog,
+            "API Method GET": clActionApiMethodGet,
+            "API Method POST": clActionApiMethodPost
         };
 
     /** Action mentioned in the Test Script Header fields */
