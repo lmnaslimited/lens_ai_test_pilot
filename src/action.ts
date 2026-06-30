@@ -1382,14 +1382,38 @@ export class clActionApiMethodGet extends clActionApiGet {
         // Use Cypress's built-in Lodash instance
         
         // _.isMatch deeply checks if LdActual contains all fields of LdExpected
-        const LIsMatch = Cypress._.isMatch(LdActual, LdExpected);
+        // const LIsMatch = Cypress._.isMatch(LdActual, LdExpected);
           
-        if (!LIsMatch) {
-            cy.log("Expected Subset:", JSON.stringify(LdExpected));
-            cy.log("Actual Object:", JSON.stringify(LdActual));
-        }
-          
+        // if (!LIsMatch) {
+        //     cy.log("Expected Subset:", JSON.stringify(LdExpected));
+        //     cy.log("Actual Object:", JSON.stringify(LdActual));
+        // }
+        const LaLogs = [];
+        cy.log("Array Order is NOT strictly validated (Lodash isMatchWith ignores array index strictness")
+        const LIsMatch = Cypress._.isMatchWith(
+            LdActual,
+            LdExpected,
+            (objValue, srcValue, key) => {
+                 // Log only primitive (leaf) values
+            if (!Cypress._.isObject(srcValue) && !Array.isArray(srcValue)) {
+                LaLogs.push(
+                `COMPARING ${String(key)}
+            EXPECTED: ${JSON.stringify(srcValue)}
+            ACTUAL:   ${JSON.stringify(objValue)}`
+                );
+            }
+              return undefined;
+            }
+          );
+
+          cy.wrap(null)
+            .then(() => {
+                LaLogs.forEach(iLog => cy.log(iLog));
+            })
+            .then(() => {
+                    
         expect(LIsMatch).to.be.true;
+         })
         cy.log("✔ validation passed");
       }
 }
