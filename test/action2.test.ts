@@ -35,8 +35,20 @@ import {
   request: jest.fn(),
 
   // Mock cy.wrap() to immediately resolve value
+  // wrap: jest.fn((val) => ({
+  //   then: (cb: any) => cb(val),
+  // })),
+
   wrap: jest.fn((val) => ({
-    then: (cb: any) => cb(val),
+    then(cb: any) {
+      const result = cb(val);
+  
+      return {
+        then(cb2: any) {
+          return cb2(result);
+        },
+      };
+    },
   })),
 
   // Mock logging function
@@ -57,6 +69,8 @@ import {
   // Provide lodash isMatch for internal validation
   _: {
     isMatch: _.isMatch,
+    isMatchWith: _.isMatchWith,
+    isObject: _.isObject,
   },
 
 };
@@ -521,8 +535,8 @@ describe("API Method Action Classes", () => {
         ).toThrow();
       });
 
-      // Test: expected subset should be logged on validation failure
-      it("should log expected subset on failure", () => {
+      // Test: comparison details should be logged on validation failure
+      it("should log comparison details on failure", () => {
 
         (ldGetInstance as any).actionRow = {
           description: JSON.stringify({
@@ -541,19 +555,23 @@ describe("API Method Action Classes", () => {
             "/api/test"
           );
 
-        } catch {
+        } catch {}
 
-          jestExpect(cy.log).toHaveBeenCalledWith(
-            "Expected Subset:",
-            JSON.stringify({
-              message: "Guest",
-            })
-          );
-        }
+        const LLogs = (cy.log as jest.Mock).mock.calls
+        .map(call => call[0]);
+
+      const LComparisonLog = LLogs.find(log =>
+        typeof log === "string" &&
+        log.includes("COMPARING message")
+      );
+
+      jestExpect(LComparisonLog).toContain('EXPECTED: "Guest"');
+      jestExpect(LComparisonLog).toContain('ACTUAL:   "Administrator"');
+
       });
 
-      // Test: actual response object should be logged on failure
-      it("should log actual object on failure", () => {
+      // Test: array order validation message should be logged
+      it("should log array order validation message", () => {
 
         (ldGetInstance as any).actionRow = {
           description: JSON.stringify({
@@ -572,17 +590,13 @@ describe("API Method Action Classes", () => {
             "/api/test"
           );
 
-        } catch {
+        } catch {}
 
-          jestExpect(cy.log).toHaveBeenCalledWith(
-            "Actual Object:",
-            JSON.stringify({
-              message: "Administrator",
-            })
-          );
-        }
+        jestExpect(cy.log).toHaveBeenCalledWith(
+          "Array Order is NOT strictly validated (Lodash isMatchWith ignores array index strictness"
+        );
+
       });
-
       // Test: nested object validation should pass when subset matches
       it("should validate nested objects", () => {
 
